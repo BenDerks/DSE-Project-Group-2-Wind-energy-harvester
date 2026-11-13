@@ -1,0 +1,32 @@
+# Kite input data. Replace the example values with the values for your design.
+
+name = "Wind_harvester_kite"
+
+# -----------------------------------------------------------
+# geometry
+# -----------------------------------------------------------
+
+[kite.geometry]
+
+type = 0                    # [-] 0 = rigid wing, 1 = soft kite, 2 = large traction kite
+area_m2 = 1.0               # [m^2] Projected kite area
+thether_length = 1          # [m] maxiumum length in meter
+thether_angle = 1           # [rad] angle in radians
+
+# -----------------------------------------------------------
+# aerodynamic properties
+# -----------------------------------------------------------
+
+[kite.aero.properties]
+
+C_l =                      # [-] lift coefficient
+C_d =                      # [-] drag coefficient
+
+# -----------------------------------------------------------
+# environmental conditions
+# -----------------------------------------------------------
+
+[environment]
+altitude_m = 400.0          # Hub altitude in meter
+
+# -----------------------------------------------------------
