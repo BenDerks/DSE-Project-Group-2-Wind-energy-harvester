@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
 def isa_atmosphere(altitude):
     # Constants
     T0 = 288.15       # K
