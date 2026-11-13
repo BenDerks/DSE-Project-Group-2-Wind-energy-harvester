@@ -5,7 +5,6 @@ from models.kite import required_kite_area
 from analysis.feasibility import check_feasibility
 
 
-
 from design_options.turbine_options import HAWT_SPACE
 from design_options.rigid_kite_options import RIGID_KITE_SPACE
 from design_options.soft_kite_options import SOFT_KITE_SPACE
@@ -13,6 +12,8 @@ from design_options.vertical_turbine_options import VAWT_SPACE
 from analysis.transport import Check_hawt_transport
 from analysis.generate_designs import generate_designs
 from analysis.performance import calculate_design_power
+from analysis.geometry import Calculate_geometry
+
 import numpy as np
 
 
