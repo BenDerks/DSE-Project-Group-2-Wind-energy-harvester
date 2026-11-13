@@ -2,9 +2,6 @@ from inputs.wind_conditions import wind_conditions
 
 from models.turbine import required_rotor_area
 from models.kite import required_kite_area
-from analysis.feasibility import check_feasibility
-
-
 from design_options.turbine_options import HAWT_SPACE
 from design_options.rigid_kite_options import RIGID_KITE_SPACE
 from design_options.soft_kite_options import SOFT_KITE_SPACE
@@ -13,9 +10,12 @@ from analysis.transport import Check_hawt_transport
 from analysis.generate_designs import generate_designs
 from analysis.performance import calculate_design_power
 from analysis.geometry import Calculate_geometry
+from analysis.feasibility import check_feasibility
+from analysis.wind_interface import get_design_wind_height
+
 
 import numpy as np
-
+import pandas as pd
 
 
 "System requirement"
@@ -69,44 +69,57 @@ print("Total number of designs:", len(all_designs))
 
 print("\nFirst generated design:")
 print(all_designs[0])
+# ==========================================
+# PERFORMANCE CALCULATIONS
+# ==========================================
 
-# Reference conditions
-rho = 1.225
-wind_speed = 5  # m/s
+evaluated_designs = []
 
-# Evaluate all designs
-evaluated_designs = [
-    calculate_design_power(design, rho, wind_speed)
-    for design in all_designs
-]
+for design in all_designs:
+
+    height = get_design_wind_height(design)
+
+    # Temporary reference conditions
+    rho = 1.225
+    wind_speed = 5
+
+    Result = calculate_design_power(
+        design,
+        rho,
+        wind_speed
+    )
+
+    Result["wind_height_m"] = height
+
+    evaluated_designs.append(Result)
 
 # Print results
 print("\nFirst evaluated design:")
 print(evaluated_designs[0])
 
-# Count designs reaching 20 kW
-successful_designs = [
-    design for design in evaluated_designs
-    if design["meets_target"]
-]
 
-print("\nDesigns reaching 30 kW:", len(successful_designs))
+
+
+
+# Calculate geometry for all designs
+geometric_designs = [
+    Calculate_geometry(design)
+    for design in all_designs
+]
 
 feasible_designs = []
 rejected_designs = []
+tbd_designs = []
 
-for design in all_designs:
+for design in geometric_designs:
+    status, reasons = check_feasibility(design)
 
-    feasible, reasons = check_feasibility(design)
-
-    if feasible:
+    if status == "PASS":
         feasible_designs.append(design)
-
+    elif status == "FAIL":
+        rejected_designs.append(design)
     else:
-        rejected_designs.append({
-            **design,
-            "rejection_reasons": reasons
-        })
+        tbd_designs.append(design)
 
 
 print("\n--- Feasibility results ---")
@@ -123,4 +136,47 @@ print("\n--- HAWT transport assessment ---")
 
 for Parameter, Value in Transport_result.items():
     print(Parameter, ":", Value)
+    
+
+# ==========================================
+# GEOMETRY FEASIBILITY
+# ==========================================
+
+Geometry_results = []
+
+for Design in geometric_designs:
+
+    Result = Design.copy()
+    Result["Geometry_status"] = check_feasibility(Design)[0]
+    Result["Geometry_reasons"] = check_feasibility(Design)[1]
+
+    Geometry_results.append(Result)
+
+print(geometric_designs[0])
+
+
+# ==========================================
+# RESULTS
+# ==========================================
+
+print("\n--- Geometry feasibility ---")
+
+for Status in ["PASS", "FAIL", "TBD"]:
+
+    Count = sum(
+        Design["Geometry_status"] == Status
+        for Design in Geometry_results
+    )
+
+    print(Status, ":", Count)
+    
+    
+print("\n--- Successful designs per architecture ---")
+
+# for Architecture in ["HAWT", "VAWT", "Rigid Kite", "Soft Kite"]:
+
+#     Count = sum(
+#         Design["architecture"] == Architecture
+#         for Design in successful_designs
+#     )
 

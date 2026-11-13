@@ -15,7 +15,7 @@ def Calculate_geometry(Design):
         Hub_height = Design["hub_height"]
 
         Rotor_radius = Rotor_diameter / 2
-        Rotor_area = np.pi * Rotor_diameter**2 / 4
+        Rotor_area = np.pi * Rotor_radius**2
 
         Blade_length = Rotor_radius
 
