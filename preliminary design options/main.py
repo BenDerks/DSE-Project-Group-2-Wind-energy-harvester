@@ -69,33 +69,45 @@ print("Total number of designs:", len(all_designs))
 
 print("\nFirst generated design:")
 print(all_designs[0])
+
 # ==========================================
 # PERFORMANCE CALCULATIONS
 # ==========================================
 
 evaluated_designs = []
 
-for design in all_designs:
+for Design in all_designs:
 
-    height = get_design_wind_height(design)
+    Architecture = Design["architecture"]
 
-    # Temporary reference conditions
+    # Select Kite or Non-Kite
+    if Architecture in ["Rigid Kite", "Soft Kite"]:
+        Design_type = "Kite"
+
+    elif Architecture in ["HAWT", "VAWT"]:
+        Design_type = "Non-Kite"
+
+    else:
+        raise ValueError(f"Unknown architecture: {Architecture}")
+
+    # Determine wind reference height
+    Height = get_design_wind_height(Design)
+
+    # Temporary wind conditions
     rho = 1.225
     wind_speed = 5
 
+    # Calculate performance
     Result = calculate_design_power(
-        design,
+        Design,
         rho,
         wind_speed
     )
 
-    Result["wind_height_m"] = height
+    Result["design_type"] = Design_type
+    Result["wind_height_m"] = Height
 
     evaluated_designs.append(Result)
-
-# Print results
-print("\nFirst evaluated design:")
-print(evaluated_designs[0])
 
 
 
