@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from analysis.wind_interface import get_design_wind_height
 
 
 def isa_atmosphere(altitude):

@@ -1,4 +1,4 @@
-from inputs.wind_conditions import wind_conditions
+from inputs.wind_conditions import wind_conditions, Wind_scalar, get_design_wind_height
 
 from models.turbine import required_rotor_area
 from models.kite import required_kite_area
@@ -11,7 +11,7 @@ from analysis.generate_designs import generate_designs
 from analysis.performance import calculate_design_power
 from analysis.geometry import Calculate_geometry
 from analysis.feasibility import check_feasibility
-from analysis.wind_interface import get_design_wind_height
+
 
 
 import numpy as np
