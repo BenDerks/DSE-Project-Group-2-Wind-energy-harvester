@@ -24,7 +24,7 @@ def load_airfoil_polar(filename="???"):
 def airfoil_coefficients(alpha_deg, polar):
     
     Cl = np.interp(alpha_deg, polar["alpha"], polar["Cl"])
-    Cd = np.interp(alpha_deg, polar["alpha"], polar{"Cd"})
+    Cd = np.interp(alpha_deg, polar["alpha"], polar["Cd"])
     Cm = np.interp(alpha_deg, polar["alpha"], polar["Cm"])
     
     
