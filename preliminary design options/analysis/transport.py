@@ -142,6 +142,19 @@ def Check_hawt_transport(Design):
     Tower_sections = math.ceil(Tower_height / Max_module_length)
     Tower_section_length = Tower_height / Tower_sections
 
+
+    {
+        "transport_feasible": True,
+        "rejection_reasons": []
+        }
+    
+    
+    {
+        "transport_feasible": False,
+        "rejection_reasons": [
+            "Blade section exceeds maximum length"
+        ]
+        }
     Result = {
         "Blade_length": Blade_length,
         "Blade_sections_per_blade": Blade_sections,
