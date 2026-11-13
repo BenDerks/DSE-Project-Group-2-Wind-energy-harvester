@@ -40,8 +40,6 @@ def calculate_design_power(design, rho, wind_speed):
     result = design.copy()
     result.update(power_data)
 
-    result["meets_target"] = result["power_W"] >= P_target
-
     return result
 
 

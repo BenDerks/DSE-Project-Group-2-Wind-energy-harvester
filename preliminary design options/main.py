@@ -171,7 +171,7 @@ for Status in ["PASS", "FAIL", "TBD"]:
     print(Status, ":", Count)
     
     
-print("\n--- Successful designs per architecture ---")
+# print("\n--- Successful designs per architecture ---")
 
 # for Architecture in ["HAWT", "VAWT", "Rigid Kite", "Soft Kite"]:
 
