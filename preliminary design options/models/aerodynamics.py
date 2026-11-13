@@ -9,7 +9,6 @@ def dynamic_pressure(rho, velocity):
     
     q = 1/2 * rho * velocity**2 
     
-    
     return q
 
 
