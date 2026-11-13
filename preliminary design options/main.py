@@ -1,4 +1,4 @@
-from inputs.wind_conditions import wind_conditions, Wind_scalar, get_design_wind_height
+from inputs.wind_conditions import wind_conditions, Wind_scalar, get_design_wind_height, isa_atmosphere
 
 from models.turbine import required_rotor_area
 from models.kite import required_kite_area
@@ -94,9 +94,11 @@ for Design in all_designs:
     Height = get_design_wind_height(Design)
 
     # Temporary wind conditions
-    rho = 1.225
-    wind_speed = 5
+    rho = isa_atmosphere(Height)[0] # air density at height
+    wind_speed = 5 # input wind speed at 10 m hardcoded till database input is available
 
+    # scale windspeed for altitude
+    wind_speed = Wind_scalar(Height, wind_speed)
     # Calculate performance
     Result = calculate_design_power(
         Design,
