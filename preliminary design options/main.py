@@ -29,14 +29,14 @@ conditions = wind_conditions(altitude, wind_speed)
 rho = conditions["air_density"]
 
 
-"turbine parameters"
+# "turbine parameters"
 
-Cp = 0.4
-eta_turbine = 0.9
+# Cp = 0.4
+# eta_turbine = 0.9
 
-"kite parameters"
-lift_to_drag = 5.0
-eta_kite = 0.5
+# "kite parameters"
+# lift_to_drag = 5.0
+# eta_kite = 0.5
 
 "calculations"
 turbine_area, turbine_diameter = required_rotor_area(P_target, rho, wind_speed, Cp, eta_turbine)

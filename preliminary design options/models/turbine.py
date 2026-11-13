@@ -6,7 +6,7 @@ def turbine_power(rho, wind_speed, rotor_area, Cp, eta_turbine):
 
     P_mechanical = P_wind * Cp
 
-    P_electrical = P_mechanical * eta
+    P_electrical = P_mechanical * eta_turbine
 
     return P_electrical
 
