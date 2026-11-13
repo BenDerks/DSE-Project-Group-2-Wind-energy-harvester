@@ -2,7 +2,7 @@ from inputs.wind_conditions import wind_conditions
 
 from models.turbine import required_rotor_area
 from models.kite import required_kite_area
-
+from analysis.feasibility import check_feasibility
 
 
 
@@ -10,7 +10,7 @@ from design_options.turbine_options import HAWT_SPACE
 from design_options.rigid_kite_options import RIGID_KITE_SPACE
 from design_options.soft_kite_options import SOFT_KITE_SPACE
 from design_options.vertical_turbine_options import VAWT_SPACE
-
+from analysis.transport import Check_hawt_transport
 from analysis.generate_designs import generate_designs
 from analysis.performance import calculate_design_power
 import numpy as np
@@ -89,4 +89,37 @@ successful_designs = [
     if design["meets_target"]
 ]
 
-print("\nDesigns reaching 20 kW:", len(successful_designs))
+print("\nDesigns reaching 30 kW:", len(successful_designs))
+
+feasible_designs = []
+rejected_designs = []
+
+for design in all_designs:
+
+    feasible, reasons = check_feasibility(design)
+
+    if feasible:
+        feasible_designs.append(design)
+
+    else:
+        rejected_designs.append({
+            **design,
+            "rejection_reasons": reasons
+        })
+
+
+print("\n--- Feasibility results ---")
+print("Original designs:", len(all_designs))
+print("Feasible designs:", len(feasible_designs))
+print("Rejected designs:", len(rejected_designs))
+
+# Select first HAWT design
+Test_design = hawt_designs[0]
+
+Transport_result = Check_hawt_transport(Test_design)
+
+print("\n--- HAWT transport assessment ---")
+
+for Parameter, Value in Transport_result.items():
+    print(Parameter, ":", Value)
+
