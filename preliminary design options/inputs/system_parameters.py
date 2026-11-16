@@ -13,14 +13,14 @@ Deployment_duration = 6  # months
 
 
 # Electrical efficiencies (preliminary assumptions)
-Eta_turbine = 0.85
-Eta_kite = 0.85
+Eta_turbine = 0.9
+Eta_kite = 0.9
 
 Kite_practical_factor = 0.305
 
 # Aerodynamic assumptions
-Cp_HAWT = 0.35
-Cp_VAWT = 0.25
+Cp_HAWT = 0.45
+Cp_VAWT = 0.30
 
 
 # Physical constants
