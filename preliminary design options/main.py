@@ -224,6 +224,10 @@ power_table = pd.DataFrame({
         )
     ],
 
+    "Rotor diameter (m)": df["rotor_diameter"],
+
+    "Kite area (m2)": df["wing_area"].combine_first(df["kite_area"]),
+
     "Wind height (m)": df["wind_height_m"],
 
     "Wind speed (m/s)": df["wind_speed_ms"],
@@ -337,6 +341,16 @@ with pd.ExcelWriter(
     }
 
     for row in range(2, ws.max_row + 1):
+
+        ws.cell(
+            row,
+            headers["Rotor diameter (m)"]
+        ).number_format = "0.00"
+
+        ws.cell(
+            row,
+            headers["Kite area (m2)"]
+        ).number_format = "0.00"
 
         ws.cell(
             row,
