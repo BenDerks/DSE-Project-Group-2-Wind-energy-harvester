@@ -25,7 +25,7 @@ def Lift_force(rho, velocity, area, Cl):
     
     q = dynamic_pressure(rho, velocity) 
     
-    L = q * area * Cl *     
+    L = q * area * Cl   
     return L
 
 
