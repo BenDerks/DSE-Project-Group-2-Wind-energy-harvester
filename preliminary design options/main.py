@@ -461,27 +461,35 @@ with pd.ExcelWriter(
 
         last_row = ws.max_row
 
-        volume_scale = ("Total volume incl. battery (m3)", "63BE7B", "F8696B")
-        power_scale = ("Power output (kW)", "F8696B", "63BE7B")
+        volume_scale = ColorScaleRule(
+            start_type="num", start_value=0, start_color="63BE7B",
+            mid_type="num", mid_value=Usable_volume, mid_color="FFEB84",
+            end_type="num", end_value=Container_volume, end_color="F8696B"
+        )
+
+        power_scale = ColorScaleRule(
+            start_type="min", start_color="F8696B",
+            mid_type="percentile", mid_value=50, mid_color="FFEB84",
+            end_type="max", end_color="63BE7B"
+        )
+
+        volume_rule = ("Total volume incl. battery (m3)", volume_scale)
+        power_rule = ("Power output (kW)", power_scale)
 
         if sheet_name == "Power Outputs":
-            color_scales = [volume_scale]
+            color_scales = [volume_rule]
         elif sheet_name == "Fitting by Power":
-            color_scales = [power_scale]
+            color_scales = [power_rule]
         else:
-            color_scales = [volume_scale, power_scale]
+            color_scales = [volume_rule, power_rule]
 
-        for sort_column, low_color, high_color in color_scales:
+        for sort_column, rule in color_scales:
 
             sort_letter = get_column_letter(headers[sort_column])
 
             ws.conditional_formatting.add(
                 f"{sort_letter}2:{sort_letter}{last_row}",
-                ColorScaleRule(
-                    start_type="min", start_color=low_color,
-                    mid_type="percentile", mid_value=50, mid_color="FFEB84",
-                    end_type="max", end_color=high_color
-                )
+                rule
             )
 
         fit_letter = get_column_letter(headers["Fits container"])
