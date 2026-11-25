@@ -19,7 +19,7 @@ Eta_kite = 0.9
 Kite_practical_factor = 0.305
 
 # Aerodynamic assumptions
-Cp_HAWT = 0.45
+Cp_HAWT = 0.4
 Cp_VAWT = 0.30
 
 

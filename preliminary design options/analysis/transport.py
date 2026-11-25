@@ -12,7 +12,9 @@ Container_height = 2.395       # m
 Door_width = 2.340              # m
 Door_height = 2.292             # m
 
-Container_volume = 33.2         # m^3
+Container_volume = 31.7         # m^3
+Packing_efficiency = 0.80
+Usable_volume = Container_volume * Packing_efficiency   # m^3
 Max_payload = 28130             # kg
 
 #
@@ -106,7 +108,7 @@ def Check_transport_feasibility(Modules):
                 f'{Module["name"]} does not fit inside container'
             )
 
-    if Total_volume > Container_volume:
+    if Total_volume > Usable_volume:
 
         Reasons.append(
             "Total packed volume exceeds container capacity"

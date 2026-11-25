@@ -22,6 +22,9 @@ from analysis.generate_designs import generate_designs
 from analysis.performance import calculate_design_power
 from analysis.geometry import Calculate_geometry
 from analysis.feasibility import check_feasibility
+from analysis.packed_volume import Calculate_packed_volume
+from analysis.transport import Container_volume, Packing_efficiency, Usable_volume
+from analysis.battery import get_battery
 
 
 # ==========================================
@@ -30,7 +33,11 @@ from analysis.feasibility import check_feasibility
 
 P_target = 30_000  # W
 
-wind_speed_10m = 5.0  # m/s
+wind_speed_10m = 6.0  # m/s
+
+Battery_option = "Li-ion (worst)"
+Battery = get_battery(Battery_option)
+Battery_volume = Battery["volume"]  # m^3
 
 
 # ==========================================
@@ -193,6 +200,16 @@ for Performance, Geometry in zip(
     Design["Geometry_status"] = Geometry["Geometry_status"]
     Design["Geometry_reasons"] = Geometry["Geometry_reasons"]
 
+    Packing = Calculate_packed_volume(Performance)
+
+    Design["harvester_volume"] = Packing["harvester_volume"]
+    Design["total_volume"] = Packing["harvester_volume"] + Battery_volume
+    Design["fits_container"] = (
+        Geometry["Geometry_status"] != "FAIL"
+        and Packing["sections_fit_door"]
+        and Design["total_volume"] <= Usable_volume
+    )
+
     combined_designs.append(Design)
 
 
@@ -224,6 +241,10 @@ power_table = pd.DataFrame({
         )
     ],
 
+    "Total volume incl. battery (m3)": df["total_volume"],
+
+    "Harvester volume (m3)": df["harvester_volume"],
+
     "Rotor diameter (m)": df["rotor_diameter"],
 
     "Kite area (m2)": df["wing_area"].combine_first(df["kite_area"]),
@@ -238,15 +259,56 @@ power_table = pd.DataFrame({
 
     "Meets 30 kW": df[power_col] >= P_target,
 
-    "Geometry status": df["Geometry_status"]
+    "Geometry status": df["Geometry_status"],
+
+    "Fits container": df["fits_container"]
 
 })
 
-# Sort by architecture and highest power
 power_table = power_table.sort_values(
-    ["Architecture", "Power output (kW)"],
+    ["Total volume incl. battery (m3)", "Power output (kW)"],
     ascending=[True, False]
 )
+
+fitting_table = power_table[power_table["Fits container"]].sort_values(
+    ["Power output (kW)", "Total volume incl. battery (m3)"],
+    ascending=[False, True]
+)
+
+architecture_sheets = {
+    "HAWT": "HAWT",
+    "Soft Kites": "Soft Kite",
+    "Rigid Kites": "Rigid Kite",
+}
+
+architecture_tables = {}
+
+for sheet_name, architecture in architecture_sheets.items():
+
+    table = power_table[power_table["Architecture"] == architecture]
+
+    fitting = table[table["Fits container"]].sort_values(
+        ["Power output (kW)", "Total volume incl. battery (m3)"],
+        ascending=[False, True]
+    )
+
+    not_fitting = table[~table["Fits container"]].sort_values(
+        ["Total volume incl. battery (m3)", "Power output (kW)"],
+        ascending=[True, False]
+    )
+
+    architecture_tables[sheet_name] = pd.concat([fitting, not_fitting])
+
+print("\n==========================================")
+print("CONTAINER VOLUME CHECK")
+print("==========================================")
+
+print(f"Container volume: {Container_volume} m3, "
+      f"packing efficiency {Packing_efficiency:.0%} "
+      f"-> usable {Usable_volume:.2f} m3")
+print(f"Battery reserved: {Battery_option}, {Battery['nominal_kWh']:.0f} kWh nominal "
+      f"({Battery_volume:.2f} m3, {Battery['mass_t']:.1f} t)")
+print("Designs that fit:", len(fitting_table), "of", len(power_table))
 
 
 # ==========================================
@@ -268,6 +330,8 @@ summary = power_table.groupby("Architecture").agg(
     Minimum_power_kW=("Power output (kW)", "min"),
 
     Designs_meeting_target=("Meets 30 kW", "sum"),
+
+    Designs_fitting_container=("Fits container", "sum"),
 
     Geometry_PASS=("Geometry status",
                    lambda x: (x == "PASS").sum())
@@ -294,78 +358,146 @@ with pd.ExcelWriter(
         index=False
     )
 
+    fitting_table.to_excel(
+        writer,
+        sheet_name="Fitting by Power",
+        index=False
+    )
+
+    for sheet_name, table in architecture_tables.items():
+
+        table.to_excel(
+            writer,
+            sheet_name=sheet_name,
+            index=False
+        )
+
     summary.to_excel(
         writer,
         sheet_name="Architecture Summary"
     )
 
-    ws = writer.sheets["Power Outputs"]
+    for sheet_name in ["Power Outputs", "Fitting by Power",
+                       *architecture_tables]:
 
-    # Freeze header
-    ws.freeze_panes = "A2"
+        ws = writer.sheets[sheet_name]
 
-    # Enable filters
-    ws.auto_filter.ref = ws.dimensions
+        # Freeze header
+        ws.freeze_panes = "A2"
 
-    # Format header
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.utils import get_column_letter
+        # Enable filters
+        ws.auto_filter.ref = ws.dimensions
 
-    for cell in ws[1]:
+        # Format header
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
 
-        cell.font = Font(
-            bold=True,
-            color="FFFFFF"
+        for cell in ws[1]:
+
+            cell.font = Font(
+                bold=True,
+                color="FFFFFF"
+            )
+
+            cell.fill = PatternFill(
+                "solid",
+                fgColor="1F4E78"
+            )
+
+            cell.alignment = Alignment(
+                horizontal="center"
+            )
+
+        # Set column widths
+        for column in ws.columns:
+
+            column_letter = get_column_letter(column[0].column)
+
+            ws.column_dimensions[column_letter].width = 23
+
+        # Format numeric values
+        headers = {
+            cell.value: cell.column
+            for cell in ws[1]
+        }
+
+        for row in range(2, ws.max_row + 1):
+
+            ws.cell(
+                row,
+                headers["Rotor diameter (m)"]
+            ).number_format = "0.00"
+
+            ws.cell(
+                row,
+                headers["Kite area (m2)"]
+            ).number_format = "0.00"
+
+            ws.cell(
+                row,
+                headers["Power output (kW)"]
+            ).number_format = "0.00"
+
+            ws.cell(
+                row,
+                headers["Wind speed (m/s)"]
+            ).number_format = "0.00"
+
+            ws.cell(
+                row,
+                headers["Air density (kg/m3)"]
+            ).number_format = "0.000"
+
+            for column_name in ["Harvester volume (m3)",
+                                "Total volume incl. battery (m3)"]:
+
+                ws.cell(
+                    row,
+                    headers[column_name]
+                ).number_format = "0.00"
+
+        # Color coding
+        from openpyxl.formatting.rule import ColorScaleRule, CellIsRule
+
+        last_row = ws.max_row
+
+        volume_scale = ("Total volume incl. battery (m3)", "63BE7B", "F8696B")
+        power_scale = ("Power output (kW)", "F8696B", "63BE7B")
+
+        if sheet_name == "Power Outputs":
+            color_scales = [volume_scale]
+        elif sheet_name == "Fitting by Power":
+            color_scales = [power_scale]
+        else:
+            color_scales = [volume_scale, power_scale]
+
+        for sort_column, low_color, high_color in color_scales:
+
+            sort_letter = get_column_letter(headers[sort_column])
+
+            ws.conditional_formatting.add(
+                f"{sort_letter}2:{sort_letter}{last_row}",
+                ColorScaleRule(
+                    start_type="min", start_color=low_color,
+                    mid_type="percentile", mid_value=50, mid_color="FFEB84",
+                    end_type="max", end_color=high_color
+                )
+            )
+
+        fit_letter = get_column_letter(headers["Fits container"])
+        fit_range = f"{fit_letter}2:{fit_letter}{last_row}"
+
+        ws.conditional_formatting.add(
+            fit_range,
+            CellIsRule(operator="equal", formula=["TRUE"],
+                       fill=PatternFill("solid", fgColor="C6EFCE"))
         )
 
-        cell.fill = PatternFill(
-            "solid",
-            fgColor="1F4E78"
+        ws.conditional_formatting.add(
+            fit_range,
+            CellIsRule(operator="equal", formula=["FALSE"],
+                       fill=PatternFill("solid", fgColor="FFC7CE"))
         )
-
-        cell.alignment = Alignment(
-            horizontal="center"
-        )
-
-    # Set column widths
-    for column in ws.columns:
-
-        column_letter = get_column_letter(column[0].column)
-
-        ws.column_dimensions[column_letter].width = 23
-
-    # Format numeric values
-    headers = {
-        cell.value: cell.column
-        for cell in ws[1]
-    }
-
-    for row in range(2, ws.max_row + 1):
-
-        ws.cell(
-            row,
-            headers["Rotor diameter (m)"]
-        ).number_format = "0.00"
-
-        ws.cell(
-            row,
-            headers["Kite area (m2)"]
-        ).number_format = "0.00"
-
-        ws.cell(
-            row,
-            headers["Power output (kW)"]
-        ).number_format = "0.00"
-
-        ws.cell(
-            row,
-            headers["Wind speed (m/s)"]
-        ).number_format = "0.00"
-
-        ws.cell(
-            row,
-            headers["Air density (kg/m3)"]
-        ).number_format = "0.000"
 
 print("\n==========================================")
 print("EXCEL EXPORT COMPLETED")
@@ -375,3 +507,4 @@ print("File:", filename)
 print("Total designs:", len(power_table))
 print("Designs meeting 30 kW:",
       power_table["Meets 30 kW"].sum())
+print("Designs fitting container:", len(fitting_table))
