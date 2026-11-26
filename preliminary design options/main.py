@@ -249,6 +249,8 @@ power_table = pd.DataFrame({
 
     "Kite area (m2)": df["wing_area"].combine_first(df["kite_area"]),
 
+    "L/D ratio (-)": df["lift_to_drag"],
+
     "Wind height (m)": df["wind_height_m"],
 
     "Wind speed (m/s)": df["wind_speed_ms"],
@@ -468,9 +470,9 @@ with pd.ExcelWriter(
         )
 
         power_scale = ColorScaleRule(
-            start_type="min", start_color="F8696B",
-            mid_type="percentile", mid_value=50, mid_color="FFEB84",
-            end_type="max", end_color="63BE7B"
+            start_type="num", start_value=0, start_color="F8696B",
+            mid_type="num", mid_value=P_target / 2000, mid_color="FFEB84",
+            end_type="num", end_value=P_target / 1000, end_color="63BE7B"
         )
 
         volume_rule = ("Total volume incl. battery (m3)", volume_scale)
