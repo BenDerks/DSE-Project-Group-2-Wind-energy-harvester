@@ -21,7 +21,9 @@ MODEL BOUNDARY
     P_out * eta and P_in / eta.
 
 STRUCTURE (block letters A-H and equation numbers M1-M29 refer to the model doc)
-    P, FI_RATIOS         fixed parameters with their sources
+    P                    fixed parameters with their sources
+    FAST, ACCURATE, NUM  numerical settings (step sizes, search grids); NUM is the active one
+    solve()              root finder (so only numpy is needed)
     geometry()           A   tether lengths, altitude, air density, tether size (once per run)
     coeffs()             B   effective lift and drag coefficients incl. tether drag
     state()              C   steady flight state of the kite incl. gravity (used by C, D and E)
@@ -51,7 +53,6 @@ MAIN SOURCES
 
 import numpy as np
 from math import sin, cos, sqrt, radians, degrees, pi, exp, gamma
-from scipy.optimize import brentq
 
 
 # =====================================================================================
@@ -96,9 +97,60 @@ P = dict(
     beta_max=60.0,   # [deg]   highest elevation used to shed force in strong wind  Schelbergen 2020, Table 5
 )
 
-# Reel-in forces that operating_point() tries, as a fraction of F_max (at least Fi_min).
-# The bounds follow Schelbergen 2020; the six values are a numerical search grid, not physics.
-FI_RATIOS = [0.03, 0.06, 0.1, 0.15, 0.25, 0.4]
+# =====================================================================================
+# NUMERICAL SETTINGS
+# Step sizes and search grids. These are numerical choices, not physics: coarser settings
+# run faster but find the optimum less precisely. FAST is the default; ACCURATE is the
+# setting used for the worked example in the model doc. FAST is about 7 times faster and
+# gives about 1% less mean power for the example kite (so about 1.5% more kite area):
+# use FAST for parameter studies and ACCURATE to check a final design.
+# =====================================================================================
+FAST = dict(
+    n_fo=60,                          # reel-out factors tried per elevation (operating_point)
+    fi_ratios=[0.03, 0.07, 0.15, 0.3],  # reel-in forces tried, fraction of F_max (bounds: Schelbergen 2020)
+    beta_step=3.0,                    # [deg] elevation step when shedding force in strong wind
+    dT=0.05,                          # reel-in time step as a fraction of dl / vw
+    n_transition=15,                  # angle steps in the transition
+    tol_state=1e-6,                   # convergence tolerance of the gravity iteration (on L/D)
+    p_skip=1e-4,                      # wind bins with a smaller probability are skipped in the sizing loop
+    S_tol=0.5,                        # [m2] tolerance on the kite area in the sizing loop
+)
+ACCURATE = dict(n_fo=150, fi_ratios=[0.03, 0.06, 0.1, 0.15, 0.25, 0.4], beta_step=1.0,
+                dT=0.02, n_transition=50, tol_state=1e-8, p_skip=0.0, S_tol=0.2)
+NUM = FAST
+
+
+def solve(fun, a, b, xtol, maxiter=60):
+    """
+    Find x in [a, b] with fun(x) = 0 (Illinois variant of regula falsi; replaces scipy's brentq).
+
+    Why: a simple, robust root finder so the model needs only numpy. fun(a) and fun(b) must
+    have opposite signs. Stops when the bracket is smaller than xtol.
+    """
+    fa, fb = fun(a), fun(b)
+    if fa == 0:
+        return a
+    if fb == 0:
+        return b
+    if fa * fb > 0:
+        raise ValueError('solve(): no sign change between a and b')
+    side = 0
+    for _ in range(maxiter):
+        x = (a * fb - b * fa) / (fb - fa)       # secant through the two bracket ends
+        fx = fun(x)
+        if fx * fb > 0:                         # root lies between a and x
+            b, fb = x, fx
+            if side == -1:
+                fa /= 2                         # Illinois step: avoid a stuck end
+            side = -1
+        else:                                   # root lies between x and b
+            a, fa = x, fx
+            if side == +1:
+                fb /= 2
+            side = +1
+        if abs(b - a) < xtol or fx == 0:
+            break
+    return x
 
 
 # =====================================================================================
@@ -181,7 +233,7 @@ def coeffs(S, dt, r, p=P):
 # =====================================================================================
 # BLOCK C - FLIGHT STATE WITH GRAVITY (the heart of the model)
 # =====================================================================================
-def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None):
+def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None, tol=None):
     """
     Steady flight state of the kite, including its weight, for one wind speed and one
     reeling factor.
@@ -203,6 +255,7 @@ def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None):
         chi   : [rad]    course angle
         rho   : [kg/m3]  air density
         trace : list or None. Pass an empty list to record every iteration step.
+        tol   : [-]      convergence tolerance on the lift-to-drag ratio (default NUM['tol_state'])
 
     Output (dict), or None if no steady flight is possible in this state
         kappa : [-]    converged kinematic ratio (crosswind / along-tether apparent wind)
@@ -218,6 +271,7 @@ def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None):
     (van der Vlugt 2019, Eq. 34-41).
     """
     g = p['g']
+    tol = NUM['tol_state'] if tol is None else tol
     CR = sqrt(CL**2 + CD**2)            # M10: resultant force coefficient
     G_target = CL / CD                  # M10: the kite's lift-to-drag ratio G*
 
@@ -267,7 +321,7 @@ def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None):
                               Fa=Fa, Fr=Fr, Fth=Fth, Gi=G_implied))
 
         # Converged when the implied L/D equals the kite's L/D
-        if abs(G_implied - G_target) < 1e-8:
+        if abs(G_implied - G_target) < tol:
             break
 
         # M17 update (van der Vlugt 2019, Eq. 41); stop if kappa runs away
@@ -294,7 +348,7 @@ def state(vw, f, S, m, mt, CL, CD, theta, phi, chi, rho, p=P, trace=None):
 # =====================================================================================
 # BLOCK D - REEL-IN, STEPPED IN TIME
 # =====================================================================================
-def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=0.02, theta_min=radians(5), record=False):
+def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=None, theta_min=radians(5), record=False):
     """
     Reel-in at a constant set force while the kite climbs, stepped in time
     (van der Vlugt 2019, Eq. 42-45).
@@ -310,8 +364,8 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=0.02, theta_min=radians(
         Fmax      : [N]    maximum tether force
         theta0    : [rad]  polar angle at the start of reel-in (= the reel-out angle)
         Fi        : [N]    set reel-in force
-        dT        : [-]    time step as a fraction of dl / vw
-                           (van der Vlugt uses 0.01; 0.02 halves the run time)
+        dT        : [-]    time step as a fraction of dl / vw (default NUM['dT'];
+                           van der Vlugt uses 0.01, FAST uses 0.05)
         theta_min : [rad]  smallest polar angle allowed; numerical guard against passing
                            the zenith (no source; not reached in the example)
         record    : bool   store every step in 'hist'
@@ -323,6 +377,7 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=0.02, theta_min=radians(
         theta_end : [rad]  polar angle at the end of reel-in (start of the transition)
         hist      : list of dicts (t, r, beta [deg], F, v) per step, only if record=True
     """
+    dT = NUM['dT'] if dT is None else dT
     r, theta = geo['rmax'], theta0
     dt_step = geo['dl'] / vw * dT       # time step (van der Vlugt 2019, Eq. 43-44)
     t = E = 0.0
@@ -347,10 +402,14 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=0.02, theta_min=radians(
             f, s = f_fast, s_fast                        # speed limit reached: force below Fi
         elif s_slow is not None and s_slow['Ftg'] >= Fi:
             f, s = f_slow, s_slow                        # even the slowest reel-in pulls more than Fi
-        else:                                            # solve force(f) = Fi exactly
-            f = brentq(lambda x: (flight(x)['Ftg'] if flight(x) else 0.0) - Fi,
-                       f_fast, f_slow, xtol=1e-9)
+        else:                                            # solve force(f) = Fi
+            def force_error(x):
+                sx = flight(x)
+                return (sx['Ftg'] if sx else 0.0) - Fi
+            f = solve(force_error, f_fast, f_slow, xtol=1e-4)
             s = flight(f)
+            if s is None:
+                return None
 
         if s['Ftg'] > Fmax:
             return None                                  # not allowed: tether overloaded
@@ -373,7 +432,7 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=0.02, theta_min=radians(
 # =====================================================================================
 # BLOCK E - TRANSITION (flying back down)
 # =====================================================================================
-def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=50):
+def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=None):
     """
     Time for the powered kite to fly back down from the end-of-reel-in angle to the
     reel-out angle, at constant tether length rmin and without reeling (M22).
@@ -384,11 +443,12 @@ def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=50):
         vw, S, m, geo : as in retraction()
         theta_from    : [rad] polar angle at the end of reel-in
         theta_to      : [rad] polar angle of reel-out
-        n             : [-]   number of equal steps in theta
+        n             : [-]   number of equal steps in theta (default NUM['n_transition'])
 
     Output
         t_x [s], or None if the kite cannot fly steadily somewhere on the way down
     """
+    n = NUM['n_transition'] if n is None else n
     r = geo['rmin']
     mt = pi / 4 * geo['dt']**2 * p['rho_t'] * r
     (CL_out, CD_out), _ = coeffs(S, geo['dt'], r, p)
@@ -408,7 +468,7 @@ def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=50):
 # =====================================================================================
 # BLOCK F - BEST OPERATING POINT AT ONE WIND SPEED
 # =====================================================================================
-def operating_point(vw, S, geo, Fmax, p=P, n=150, detail=False):
+def operating_point(vw, S, geo, Fmax, p=P, n=None, detail=False):
     """
     Choose how to fly at one wind speed: reel-out factor, reel-in force and, in strong
     wind, a higher elevation, so that the cycle power is highest within the limits (M24).
@@ -422,8 +482,10 @@ def operating_point(vw, S, geo, Fmax, p=P, n=150, detail=False):
         S      : [m2]  projected kite area (airborne mass follows as w * S)
         geo    : dict from geometry()
         Fmax   : [N]   maximum tether force
-        n      : [-]   number of reel-out factors tried
+        n      : [-]   number of reel-out factors tried (default NUM['n_fo'])
         detail : bool  also return all candidates (used for the reel-out factor chart)
+
+    Search grids (reel-in forces, elevation step) come from NUM.
 
     Output
         dict with the best operating point:
@@ -435,12 +497,13 @@ def operating_point(vw, S, geo, Fmax, p=P, n=150, detail=False):
         'cutout'   : above cut-out (force limit cannot be met even at 60 deg)
         With detail=True: (best, list_of_all_candidates)
     """
+    n = NUM['n_fo'] if n is None else n
     m = p['w'] * S                                           # M7: airborne mass
     (CL_out, CD_out), _ = coeffs(S, geo['dt'], geo['rbar'], p)
 
     # Normal flight is at beta_o; only if the force limit cannot be met is the elevation
-    # raised (1 deg at a time) to shed force (Schelbergen 2020)
-    for beta in np.arange(p['beta_o'], p['beta_max'] + 0.01, 1.0):
+    # raised (in steps of NUM['beta_step']) to shed force (Schelbergen 2020)
+    for beta in np.arange(p['beta_o'], p['beta_max'] + 0.01, NUM['beta_step']):
         theta = radians(90 - beta)
         b = sin(theta) * cos(radians(p['phi_o']))
 
@@ -462,7 +525,7 @@ def operating_point(vw, S, geo, Fmax, p=P, n=150, detail=False):
 
         # Combine every allowed reel-out with every trial reel-in force
         candidates = []
-        for ratio in FI_RATIOS:
+        for ratio in NUM['fi_ratios']:
             Fi = max(ratio * Fmax, p['Fi_min'])
             reel_in = retraction(vw, S, m, geo, Fmax, theta, Fi, p)
             if reel_in is None:
@@ -517,7 +580,7 @@ def weibull_bins(mean, k, vs, dv):
 # =====================================================================================
 # BLOCK G - MEAN POWER OVER THE WIND CLASS
 # =====================================================================================
-def mean_power(S, geo, Fmax, vs, pj, p=P):
+def mean_power(S, geo, Fmax, vs, pj, p=P, p_skip=0.0):
     """
     Mean mechanical power over the wind class for one kite area (M26).
 
@@ -529,13 +592,17 @@ def mean_power(S, geo, Fmax, vs, pj, p=P):
         geo    : dict from geometry()
         Fmax   : [N]   maximum tether force
         vs, pj : [m/s], [-]  wind bins and their probabilities
+        p_skip : [-]   bins with a probability below this are not computed (saves time in
+                       the sizing loop; their contribution to the mean is negligible)
 
     Output (tuple)
         P_mean : [W]  mean power = sum of pj * Pc(vj)
         curve  : list with the operating_point() result per bin (the power curve);
-                 None = below cut-in, 'cutout' = above cut-out, both count as Pc = 0
+                 None = below cut-in, 'cutout' = above cut-out, 'skipped' = not computed;
+                 all three count as Pc = 0
     """
-    curve = [operating_point(v, S, geo, Fmax, p) for v in vs]
+    curve = [operating_point(v, S, geo, Fmax, p) if pr >= p_skip else 'skipped'
+             for v, pr in zip(vs, pj)]
     Pc = np.array([c['Pc'] if isinstance(c, dict) else 0.0 for c in curve])
     return float(np.sum(pj * Pc)), curve
 
@@ -565,43 +632,101 @@ def size_kite(zmin, zmax, Fmax, P_target, vs, pj, S_lo=10.0, S_hi=150.0, p=P):
         geo        : dict   tether lengths, diameter and masses            (block A)
         P_mean     : [W]    mean power (equals the target)                 (M26)
         curve      : list   power curve, one operating_point() result per wind bin
-        v_in       : [m/s]  cut-in wind speed (lowest bin with Pc > 0)     (M24)
+        v_in       : [m/s]  cut-in wind speed, refined between bins to ~0.03 m/s   (M24)
         v_out      : [m/s]  cut-out wind speed; None = no cut-out within the bins
-        T_out      : [h/yr] hours out of operation                         (M27)
+        T_out      : [h/yr] hours out of operation, below v_in or above v_out      (M27)
         sigma_rel  : [-]    variability sigma_P / P_mean                   (M28)
         P_rated    : [W]    peak reel-out power F_max * v_max              (M25)
         CF         : [-]    capacity factor P_mean / P_rated               (M29)
 
-    Run time: each mean_power() call takes about 40 s; a sizing run needs 6-8 of them.
+    Run time with NUM = FAST: a few seconds per mean_power() call; a sizing run needs 6-10.
     """
     geo = geometry(zmin, zmax, Fmax, p)
 
-    # Mean power minus target, as a function of kite area (zero at the solution)
+    # Mean power minus target, as a function of kite area (zero at the solution).
+    # Bins with negligible probability are skipped while searching; results are remembered
+    # so the same area is never computed twice.
+    memo = {}
+
     def shortfall(S):
-        return mean_power(S, geo, Fmax, vs, pj, p)[0] - P_target
+        if S not in memo:
+            memo[S] = mean_power(S, geo, Fmax, vs, pj, p, p_skip=NUM['p_skip'])[0] - P_target
+        return memo[S]
 
     # If even the largest area falls short, no kite size works with this F_max
     if shortfall(S_hi) < 0:
         return None
+    if shortfall(S_lo) > 0:
+        raise ValueError(f'S_lo = {S_lo} m2 already gives more than the target; lower S_lo')
 
-    # Brent's method: narrow down the kite area until within 0.2 m2
-    S = brentq(shortfall, S_lo, S_hi, xtol=0.2)
+    # Root finder: narrow down the kite area until within NUM['S_tol']
+    S = solve(shortfall, S_lo, S_hi, xtol=NUM['S_tol'])
 
-    # Recompute the power curve at the final area and derive the metrics (block H)
+    # Recompute the full power curve (all bins) at the final area and derive the metrics (block H)
     P_mean, curve = mean_power(S, geo, Fmax, vs, pj, p)
     Pc = np.array([c['Pc'] if isinstance(c, dict) else 0.0 for c in curve])
-    out_of_operation = [i for i, c in enumerate(curve) if not isinstance(c, dict)]
     P_rated = Fmax * p['vmax']                                           # M25
+
+    # Cut-in and cut-out: the bins only say between which bin centres they lie (1 m/s apart,
+    # and one bin can hold 10% of the year). Refine both by bisection on the wind speed.
+    v_in, v_out = _refine_limits(S, geo, Fmax, vs, curve, p)
+
+    # M27: hours out of operation. Probability below v_in and above v_out, counting the part
+    # of the boundary bin that lies beyond the limit (probability spread evenly over a bin).
+    dv = vs[1] - vs[0]
+    below = np.clip((v_in - (vs - dv / 2)) / dv, 0, 1) if v_in is not None else np.ones_like(vs)
+    above = np.clip(((vs + dv / 2) - v_out) / dv, 0, 1) if v_out is not None else np.zeros_like(vs)
+    T_out = 8760 * float(np.sum(pj * np.minimum(below + above, 1)))
 
     return dict(
         S=S, A=S / p['area_ratio'], m=p['w'] * S, geo=geo,
         P_mean=P_mean, curve=curve,
-        v_in=next((v for v, c in zip(vs, curve) if isinstance(c, dict)), None),
-        v_out=next((v for v, c in zip(vs, curve) if c == 'cutout'), None),
-        T_out=8760 * float(sum(pj[i] for i in out_of_operation)),         # M27
+        v_in=v_in, v_out=v_out, T_out=T_out,                             # M24, M27
         sigma_rel=float(np.sqrt(np.sum(pj * (Pc - P_mean)**2)) / P_mean), # M28
         P_rated=P_rated, CF=P_mean / P_rated,                             # M29
     )
+
+
+def _refine_limits(S, geo, Fmax, vs, curve, p=P, steps=5):
+    """
+    Cut-in and cut-out wind speed to within (bin width / 2**steps), by bisection.
+
+    Why: with 1 m/s bins the cut-in jumps from bin to bin, which makes the hours out of
+    operation jump by several hundred hours for small design changes.
+
+    Inputs: the kite (S, geo, Fmax), the bin centres vs and the power curve from mean_power().
+    Output: (v_in, v_out) [m/s]; v_out is None if there is no cut-out within the bins,
+            v_in is None if the kite never produces power.
+    """
+    works = [isinstance(c, dict) for c in curve]
+    if not any(works):
+        return None, None
+
+    def flies(v):
+        return isinstance(operating_point(v, S, geo, Fmax, p), dict)
+
+    # Cut-in: between the last bin without power and the first bin with power
+    i = works.index(True)
+    if i == 0:
+        v_in = float(vs[0])
+    else:
+        lo, hi = float(vs[i - 1]), float(vs[i])
+        for _ in range(steps):
+            mid = 0.5 * (lo + hi)
+            lo, hi = (lo, mid) if flies(mid) else (mid, hi)
+        v_in = hi
+
+    # Cut-out: between the last bin with power and the first 'cutout' bin after it
+    j = next((k for k in range(i, len(curve)) if curve[k] == 'cutout'), None)
+    if j is None:
+        v_out = None
+    else:
+        lo, hi = float(vs[j - 1]), float(vs[j])
+        for _ in range(steps):
+            mid = 0.5 * (lo + hi)
+            lo, hi = (mid, hi) if flies(mid) else (lo, mid)
+        v_out = lo
+    return v_in, v_out
 
 
 # =====================================================================================
@@ -619,6 +744,7 @@ if __name__ == '__main__':
     P_mean, _ = mean_power(71.7, geo, 40e3, vs, pj)
     print(f'S = 71.7 m2, F_max = 40 kN: mean power {P_mean / 1e3:.1f} kW')
 
-    # Full sizing run for one wind class (takes a few minutes):
-    # result = size_kite(100.0, 200.0, 40e3, 30e3, vs, pj)
-    # print(result['S'], result['v_in'], result['T_out'])
+    # Full sizing run for this wind class
+    result = size_kite(100.0, 200.0, 40e3, 30e3, vs, pj)
+    print(f"Sized kite: S = {result['S']:.1f} m2, cut-in {result['v_in']} m/s, "
+          f"{result['T_out']:.0f} h/yr out of operation")
