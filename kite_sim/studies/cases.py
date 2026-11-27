@@ -10,9 +10,9 @@ from pathlib import Path
 
 from .. import model as km
 from .. import wind as da
-from .settings import (BASE, CACHE_FILE, FMAX_CLASSES, FMAX_VALUES, HEIGHT_CLASSES, HEIGHT_WINDOWS,
-                       LD_RANGE, REPO, S_MAX, SENS_CLASS, SENSITIVITY, SITE_ELEVATION,
-                       USE_SITE_ELEVATION)
+from .settings import (BASE, CACHE_FILE, FMAX_CLASSES, FMAX_VALUES, HEIGHT_CLASSES, HEIGHT_STROKES,
+                       HEIGHT_ZMAX_LIMIT, HEIGHT_ZMIN, LD_CLASSES, LD_VALUES, REPO, S_MAX,
+                       SENS_CLASS, SENSITIVITY, SITE_ELEVATION, USE_SITE_ELEVATION)
 
 
 # =====================================================================================
@@ -87,17 +87,28 @@ N_CLASSES = len(da.CLASS_NAMES)
 
 
 def cases_per_class():
+    """Baseline design for every wind class."""
     return [make_case(c) for c in range(1, N_CLASSES + 1)]
 
 
-def cases_ld_range():
-    """Every class at the baseline and at each kite L/D in LD_RANGE (C_L,o fixed)."""
-    return cases_per_class() + [make_case(c, CDko=km.P['CLo'] / LD)
-                                for LD in LD_RANGE for c in range(1, N_CLASSES + 1)]
+def height_windows():
+    """All (z_min, z_max) pairs of the height study (z_max at most HEIGHT_ZMAX_LIMIT)."""
+    return [(a, a + d) for a in HEIGHT_ZMIN for d in HEIGHT_STROKES if a + d <= HEIGHT_ZMAX_LIMIT]
 
 
 def cases_height():
-    return [make_case(c, zmin=a, zmax=b) for c in HEIGHT_CLASSES for a, b in HEIGHT_WINDOWS]
+    return [make_case(c, zmin=a, zmax=b) for c in HEIGHT_CLASSES for a, b in height_windows()]
+
+
+def ld_case(cls, LD):
+    """Baseline case with the kite L/D set through the drag coefficient (C_L,o fixed)."""
+    if abs(LD - km.P['CLo'] / km.P['CDko']) < 1e-9:
+        return make_case(cls)                      # the baseline itself: shared with other studies
+    return make_case(cls, CDko=km.P['CLo'] / LD)
+
+
+def cases_ld():
+    return [ld_case(c, LD) for c in LD_CLASSES for LD in LD_VALUES]
 
 
 def cases_fmax():

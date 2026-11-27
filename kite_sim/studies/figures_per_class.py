@@ -10,62 +10,45 @@ from .. import model as km
 from .. import wind as da
 from .settings import BASE, C_GREY, C_KITE, C_TETHER, S_MAX
 from .cases import N_CLASSES, _key, cases_per_class
-from .style import _base_note, _mark_infeasible, _style, short_label
+from .style import _base_note, _style, short_label
 
 
 # =====================================================================================
 # FIGURES
 # =====================================================================================
-def fig_size_per_class(res, df=None):
-    """Kite area and mass (kite + tether) for every wind class."""
+def fig_size_mass_per_class(res, df=None):
+    """
+    Study 1: kite area and airborne + tether mass for every wind class, in one graph.
+
+    Why: the two numbers per class that feed the volume and mass budget, side by side.
+    Baseline design; classes where no kite up to S_MAX reaches the target are labelled.
+    """
     rs = [res[_key(c)] for c in cases_per_class()]
     x = np.arange(1, N_CLASSES + 1)
-    fig, (a1, a2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-
-    S = [r['S'] for r in rs]
-    A = [r['A'] for r in rs]
-    a1.bar(x - 0.2, S, 0.4, color=C_KITE, label='projected area S')
-    a1.bar(x + 0.2, A, 0.4, color=C_TETHER, label='flat area A')
-    _mark_infeasible(a1, x, rs)
-    _style(a1, 'Kite area needed for 30 kW mean power per wind class', ylabel='area [m²]')
-    a1.legend(frameon=False, loc='upper left')
-
-    m = [r['m'] for r in rs]
-    mt = [r['mt_tot'] if r['feasible'] else np.nan for r in rs]
-    a2.bar(x, m, 0.6, color=C_KITE, label='kite + control unit')
-    a2.bar(x, mt, 0.6, bottom=m, color=C_TETHER, label='tether (full length)')
-    for xi, mi, ti in zip(x, m, mt):
-        if np.isfinite(mi):
-            a2.text(xi, mi + ti, f'{mi + ti:.0f}', ha='center', va='bottom', fontsize=8)
-    _mark_infeasible(a2, x, rs)
-    _style(a2, 'Airborne mass and tether mass', ylabel='mass [kg]')
-    a2.legend(frameon=False, loc='upper left')
-    a2.set_xticks(x, [short_label(c) for c in x])
-    a2.set_xlabel(f'wind class (mean wind speed at {da.CLASS_HEIGHT} m, m/s)')
-    fig.text(0.01, 0.005, _base_note(), fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.02, 1, 1))
-    return fig
-
-
-def fig_downtime_per_class(res, df=None):
-    """Hours per year out of operation and cut-in wind speed for every class."""
-    rs = [res[_key(c)] for c in cases_per_class()]
-    x = np.arange(1, N_CLASSES + 1)
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    T = [r['T_out'] for r in rs]
-    ax.bar(x, T, 0.6, color=C_KITE)
-    for xi, r in zip(x, rs):
-        if r['feasible']:
-            ax.text(xi, r['T_out'] + 80, f"{100 * r['T_out'] / 8760:.0f}%\ncut-in\n{r['v_in']:.1f} m/s",
-                    ha='center', va='bottom', fontsize=7.5)
-    _mark_infeasible(ax, x, rs)
-    ax.set_ylim(0, 8760)
-    _style(ax, 'Hours per year below cut-in or above cut-out', ylabel='hours out of operation per year')
-    ax.set_xticks(x, [short_label(c) for c in x])
-    ax.set_xlabel(f'wind class (mean wind speed at {da.CLASS_HEIGHT} m, m/s)')
-    fig.text(0.01, 0.005, _base_note() + '. Cut-in is the wind speed at the mean flying height.',
-             fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    S = np.array([r['S'] for r in rs])
+    M = np.array([r['m'] + r['mt_tot'] if r['feasible'] else np.nan for r in rs])
+    fig, ax = plt.subplots(figsize=(11, 5.2))
+    ax.bar(x - 0.2, S, 0.4, color=C_KITE, label='projected kite area S [m²]')
+    ax.bar(x + 0.2, M, 0.4, color=C_TETHER, label='kite + control unit + tether mass [kg]')
+    for xi, s_, m_ in zip(x, S, M):
+        if np.isfinite(s_):
+            ax.text(xi - 0.2, s_, f'{s_:.0f}', ha='center', va='bottom', fontsize=7.5)
+            ax.text(xi + 0.2, m_, f'{m_:.0f}', ha='center', va='bottom', fontsize=7.5)
+    bad = [xi for xi, r in zip(x, rs) if not r['feasible']]
+    if bad:
+        which = f'C{min(bad)}' if min(bad) == max(bad) else f'C{min(bad)}-C{max(bad)}'
+        ax.text(0.5 * (min(bad) + max(bad)), 0.05 * np.nanmax(np.r_[M, 1.0]),
+                f'{which}:\nno kite up to\n{S_MAX:.0f} m²\nreaches 30 kW',
+                ha='center', fontsize=7.5, color=C_GREY)
+    ax.set_xlim(0.4, N_CLASSES + 0.6)
+    ax.set_xticks(x, [short_label(c) for c in x], fontsize=8)
+    _style(ax, 'Kite size and mass per wind class',
+           f'wind class (mean wind speed at {da.CLASS_HEIGHT} m, m/s)', 'area [m²]  /  mass [kg]')
+    ax.legend(frameon=False, fontsize=8, loc='upper right')
+    LD = km.P['CLo'] / km.P['CDko']
+    fig.text(0.01, 0.01, _base_note() + f'. Kite L/D {LD:.1f}, {km.P["w"]:.2f} kg/m². '
+             'Tether mass for the full tether length.', fontsize=8, color=C_GREY)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
     return fig
 
 
@@ -88,35 +71,6 @@ def fig_power_curves(res, df=None):
     a2.set_xlim(0, 30)
     fig.text(0.01, 0.005, _base_note() + '. Mechanical power at the drum.', fontsize=8, color=C_GREY)
     fig.tight_layout(rect=(0, 0.02, 1, 1))
-    return fig
-
-
-def fig_stability_cf(res, df=None):
-    """
-    Power variability (stability criterion) and mean power as share of max cycle power.
-
-    Not plotted: capacity factor against peak reel-out power (F_max * v_max); with fixed
-    target and F_max it is the same for every class by construction.
-    """
-    rs = [res[_key(c)] for c in cases_per_class()]
-    x = np.arange(1, N_CLASSES + 1)
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.2))
-    a1.bar(x, [r['sigma_rel'] for r in rs], 0.6, color=C_KITE)
-    _style(a1, 'Variability of the power, σ_P / mean', ylabel='σ_P / P̄ [-]')
-    share = [100 * BASE['P_target'] / np.nanmax(r['Pc']) if r['feasible'] else np.nan for r in rs]
-    a2.bar(x, share, 0.6, color=C_KITE)
-    for xi, r, s in zip(x, rs, share):
-        if r['feasible']:
-            a2.text(xi, s + 0.5, f"max\n{np.nanmax(r['Pc']) / 1e3:.0f} kW", ha='center',
-                    va='bottom', fontsize=7.5)
-    _style(a2, 'Mean power as share of maximum cycle power', ylabel='P̄ / max P_c [%]')
-    for ax in (a1, a2):
-        ax.set_xticks(x, [short_label(c) for c in x], fontsize=8)
-        ax.set_xlabel('wind class')
-        _mark_infeasible(ax, x, rs)
-    fig.text(0.01, 0.01, _base_note() + '. Variability over the wind distribution, not hourly.',
-             fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
     return fig
 
 
@@ -168,40 +122,3 @@ def fig_wind_classes(res, df=None):
     return fig
 
 
-def fig_class_overview(res, df=None):
-    """
-    Kite area, airborne + tether mass and hours out of operation per class (baseline design).
-
-    The three numbers that feed the trade-off (size, mass budget, downtime) side by side;
-    one bar per class, value on top.
-    """
-    rs = [res[_key(c)] for c in cases_per_class()]
-    x = np.arange(1, N_CLASSES + 1)
-    panels = (
-        ('Kite area for 30 kW mean', 'projected area S [m²]', [r['S'] for r in rs], '{:.0f}'),
-        ('Airborne + tether mass', 'mass [kg]',
-         [r['m'] + r['mt_tot'] if r['feasible'] else np.nan for r in rs], '{:.0f}'),
-        ('Hours out of operation', 'hours per year', [r['T_out'] for r in rs], '{:,.0f}'),
-    )
-    fig, axs = plt.subplots(1, 3, figsize=(16, 4.8))
-    for ax, (title, unit, vals, fmt) in zip(axs, panels):
-        ax.bar(x, vals, 0.6, color=C_KITE)
-        top = np.nanmax(vals)
-        for xi, v in zip(x, vals):
-            if np.isfinite(v):
-                ax.text(xi, v + 0.01 * top, fmt.format(v), ha='center', va='bottom', fontsize=7.5)
-        ax.set_ylim(0, 1.12 * top)
-        ax.set_xlim(0.4, N_CLASSES + 0.6)
-        ax.set_xticks(x, [short_label(c) for c in x], fontsize=7)
-        _style(ax, title, 'wind class (mean wind at 100 m, m/s)', unit)
-        # One label spanning all classes without a design
-        bad = [xi for xi, r in zip(x, rs) if not r['feasible']]
-        if bad:
-            ax.text(0.5 * (min(bad) + max(bad)), 0.06 * ax.get_ylim()[1],
-                    f'C{min(bad)}-C{max(bad)}:\nno kite up to {S_MAX:.0f} m²\nreaches 30 kW',
-                    ha='center', va='bottom', fontsize=8, color=C_GREY)
-    LD = km.P['CLo'] / km.P['CDko']
-    fig.text(0.01, 0.01, _base_note() + f'. Kite L/D {LD:.1f}, {km.P["w"]:.1f} kg/m². '
-             f'Hours out of operation: wind below cut-in or above cut-out.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
-    return fig

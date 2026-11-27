@@ -8,20 +8,19 @@ WHAT IT DOES
     mean power and plots how the kite changes.
 
 FIGURES (outputs/figures/)
-    1 size_per_class       kite area and mass (kite + tether) per wind class
-    2 size_vs_height       kite area, mass and tether against flying height
-    3 downtime_per_class   hours per year out of operation and cut-in speed per class
-    4 power_curves         power curve of the kite designed for each class
-    5 fmax_effect          kite area and mass against the maximum tether force
-    6 sensitivity          tornado chart: which model parameter moves the kite area most
-    7 stability_cf         power variability (stability criterion), mean / max cycle power
-    8 wind_classes         number of data points (areas) per mean wind speed, per class
-    9 size_range_ld        kite area and downtime per class over the measured kite L/D range
-   10 class_overview       kite area, airborne + tether mass and downtime per class (baseline)
+    1 size_mass_per_class  kite area and airborne + tether mass per wind class (baseline design)
+    2 size_vs_height       kite area against z_min and z_max (classes C5, C7, C9; z_max <= 300 m)
+    3 size_vs_ld           kite area against the kite lift-to-drag ratio, one line per class
+    4 size_vs_fmax         kite area against the maximum tether force, one line per class
+    5 power_curves         power curve of the kite designed for each class (extra)
+    6 sensitivity          tornado chart: which model parameter moves the kite area most (extra)
+    7 wind_classes         number of data points (areas) per mean wind speed, per class (extra)
+
+    Hours out of operation are deliberately not plotted: they follow after the kite sizing.
 
 HOW TO RUN
     python plotting.py                                all figures
-    python plotting.py size_per_class sensitivity     only these figures
+    python plotting.py size_vs_ld size_vs_fmax        only these figures
     python plotting.py --workers 4                    number of parallel processes
     python plotting.py --fresh                        ignore cached results and recompute
 
@@ -32,9 +31,8 @@ HOW TO RUN
 
 RUN TIME
     One case (a full sizing) takes about 1-3 min on one core with kite_model.FAST; cases run in
-    parallel. All figures need 96 cases (about 95 min on 2 cores, 30 min on 6). The committed
-    cache (outputs/kite_cache.pkl) holds all of them for the current code and data, so the
-    figures redraw in seconds.
+    parallel. All figures need about 165 cases (about 45 min on 8 cores, 3 h on 2). Cached
+    cases are not recomputed; a model or data change resets the cache.
 
 SITE ELEVATION
     Each case uses the mean ground elevation of its wind class (data_analysis.class_elevations)
@@ -46,8 +44,8 @@ CODE (kite_sim/studies/; re-exported here, so  import plotting as pl  works as b
     cases.py              make_case(), the cases each figure needs, result cache
     runner.py             run_case(), run_cases() (parallel)
     style.py              shared axis style and labels
-    figures_per_class.py  figures 1, 3, 4, 7, 8, 10
-    figures_studies.py    figures 2, 5, 6, 9
+    figures_per_class.py  figures 1, 5, 7
+    figures_studies.py    figures 2, 3, 4, 6
     cli.py                FIGURES and main()
 """
 

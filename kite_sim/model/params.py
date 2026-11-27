@@ -22,18 +22,31 @@ P = dict(
 
     # Aerodynamics of the soft kite (kite only, tether drag is added in coeffs())
     CLo=0.9,         # [-]     lift coefficient, powered (reel-out)         Schelbergen 2020, Table 4
-    CDko=0.225,      # [-]     kite drag coefficient, powered -> L/D = 4.0  Oehler & Schmehl 2019
-                     #         L/D 4.0 = AVERAGE measured in flight during reel-out, turns
-                     #         included (Oehler & Schmehl 2019, WES 4: "about 4"; van der Vlugt
-                     #         2019: 3.6 and 4.0). Schelbergen 2020, Table 4 uses 0.2 (L/D 4.5,
-                     #         between that average and the measured peak of ~5). One L/D covers
-                     #         the whole reel-out, so the average fits. Study range: L/D 3.6-5.0.
+    CDko=0.2,        # [-]     kite drag coefficient, powered -> L/D = 4.5  Schelbergen 2020, Table 4
+                     #         L/D 4.5 sits between the AVERAGE measured in flight during reel-out,
+                     #         turns included (about 4: Oehler & Schmehl 2019, WES 4; van der Vlugt
+                     #         2019: 3.6 and 4.0) and the measured peak of about 5 (Oehler &
+                     #         Schmehl 2019). It is the value of the TU Delft V3 kite model in
+                     #         Schelbergen 2020 and fits a newer kite designed for traction a bit
+                     #         better than the V3. Slightly optimistic against the measured average;
+                     #         the L/D study (3.6-6.0) shows the effect.
     CLi=0.2,         # [-]     lift coefficient, depowered (reel-in)        Schelbergen 2020, Table 4
     CDki=0.1,        # [-]     kite drag coefficient, depowered             Schelbergen 2020, Table 4
 
     # Kite mass and size
-    w=2.0,           # [kg/m2] airborne mass (wing + control unit) per m2 of projected area
-                     #         Cayon 2026, Table 1 (1.83 for 19.75 m2, 2.00 for 46.85 m2)
+    w=1.32,          # [kg/m2] airborne mass (wing + control unit + bridle) per m2 of projected
+                     #         area: the average of three flown systems (1.15 + 1.55 + 1.26) / 3:
+                     #  - TU Delft V3 LEI kite: 22.8 kg on 19.75 m2 projected = 1.15 kg/m2
+                     #    (Schelbergen, Kalverla, Schmehl & Watson 2020, WES 5, Table 4)
+                     #  - Kitepower Falcon V9 LEI kite: 73 kg incl. control unit and bridle for
+                     #    60 m2 flat (Schmehl, AWE course slides lecture 3, prototype table,
+                     #    https://awecourse.github.io/slides/awe03.html), 47 m2 projected
+                     #    (Kitepower Falcon brochure) = 1.55 kg/m2
+                     #  - SkySails PN-14 ram-air kite: 52 kg kite + 55 kg control pod for 170 m2
+                     #    flat (SkySails data sheet Venyo PN-14, REV.2 2025), 85 m2 projected
+                     #    (projected/flat 90/180, AWE course table) = 1.26 kg/m2
+                     #  Cayon, van Deursen & Schmehl 2026, Table 1 give higher values (1.83 for
+                     #  19.75 m2, 2.00 for 46.85 m2); the model used 2.0 until 27 Nov 2026.
     area_ratio=0.78, # [-]     projected area / flat area                   V9 and V3 kite data
 
     # Tether

@@ -62,8 +62,9 @@ CHANGES AFTER THE VERIFICATION (November 2026; see verification/ and the overvie
        (Schelbergen 2020, Table 5: 25-60 deg). Before, only when no state was allowed.
     4. Optional generator limit P_gen_max (default None = no limit, as before).
     5. Site elevation z_site for the air density (geometry(), size_kite()).
-    6. Kite drag C_D,k,o 0.2 -> 0.225: L/D 4.0 (measured reel-out average, TU Delft V3 kite)
-       instead of 4.5 (see P).
+    6. Kite drag C_D,k,o: briefly 0.225 (L/D 4.0, measured reel-out average of the TU Delft
+       V3 kite), back to 0.2 (L/D 4.5, Schelbergen 2020) on 27 Nov 2026 (see P).
+    7. Kite mass per area 2.0 -> 1.32 kg/m2: the average of three flown kites (see P).
     Switch 1-3 off in P (transition_energy, depower, optimise_elevation) to get the first
     model version back.
 

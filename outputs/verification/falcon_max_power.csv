@@ -1,0 +1,11 @@
+change,max_kW,at_wind
+reference: F_max 60 kN,77.5,18.0
+F_max 34 kN (brochure),52.9,13.0
+F_max 100 kN,84.4,19.0
+generator 200 kW instead of 130 kW (electrical),99.6,19.0
+no generator limit,140.8,23.0
+reel-in L/D 3.5 instead of 2.0 (van der Vlugt 2019),70.6,18.0
+max reeling speed 15 instead of 10 m/s,76.5,18.0
+kite L/D 5 instead of 4,80.0,15.0
+reel-out from 150 m instead of 200 m (longer stroke),80.9,15.0
+kite 80 m² flat instead of 100,79.9,18.0

@@ -27,29 +27,42 @@ USE_SITE_ELEVATION = True
 # Mean ground elevation per class [m]; filled by main() from the data, read by make_case()
 SITE_ELEVATION = {}
 
-# Kite L/D range shown per class [-] (C_L,o fixed, C_D,k,o varied). Baseline 4.0 (kite_model.P);
-# 5.0 = measured in-flight peak, TU Delft V3 kite (Oehler & Schmehl 2019);
-# 3.6 = measured traction average (van der Vlugt et al. 2019)
-LD_RANGE = [3.6, 5.0]
+# ---- Study 2: flying heights ---------------------------------------------------------
+# Every combination of z_min and stroke (z_max - z_min), up to z_max = 300 m.
+# Why at most 300 m: at the fixed 25 deg elevation the tether is z / sin(25 deg) = 2.4 z long,
+# so 300 m needs a 710 m tether. That is within the 600-800 m tether of the SkySails PN-14,
+# which specifies its performance at a flight altitude of 200 m (data sheet Venyo PN-14,
+# 2025); Kitepower's 350 m tether (kitepower website, Falcon) reaches about 150 m at 25 deg.
+# All heights stay inside the measured wind data (up to 400 m), so nothing is extrapolated.
+HEIGHT_ZMIN = [50, 75, 100, 125, 150]              # [m]
+HEIGHT_STROKES = [50, 100, 150]                    # [m] z_max - z_min
+HEIGHT_ZMAX_LIMIT = 300                            # [m]
+HEIGHT_CLASSES = [5, 7, 9]                         # C5 6.5-7.0, C7 7.5-8.0, C9 8.5-9.0 m/s at 100 m
 
-# Classes for the height, F_max and sensitivity studies. With the current CLASS_EDGES
-# (data_analysis.py), at 100 m: C2 5.0-5.5, C3 5.5-6.0, C4 6.0-6.5, C5 6.5-7.0, C6 7.0-7.5,
-# C7 7.5-8.0, C8 8.0-8.5 m/s
-HEIGHT_CLASSES = [2, 4, 6, 8]
-FMAX_CLASSES = [3, 5, 7]
+# ---- Study 3: kite lift-to-drag ratio (C_L,o fixed at 0.9, C_D,k,o = C_L,o / (L/D)) ----
+# Value -> source. 4.5 is the baseline in kite_model.P.
+LD_VALUES = {
+    3.6: 'TU Delft V3 kite, traction average (van der Vlugt et al. 2019)',
+    4.0: 'TU Delft V3 kite, reel-out average in flight (Oehler & Schmehl 2019)',
+    4.5: 'TU Delft V3 kite parameters (Schelbergen et al. 2020, Table 4) - baseline',
+    5.0: 'TU Delft V3 kite, measured peak (Oehler & Schmehl 2019)',
+    6.0: 'small ram-air kites, 3-6 m2 (de Wachter 2008; Dadd et al. 2010; via Oehler & Schmehl '
+         '2019); consistent with the SkySails PN-14 data sheet',
+}
+LD_CLASSES = list(range(1, 11))
+
+# ---- Study 4: maximum tether force -----------------------------------------------------
+# A design choice. For reference: Kitepower Falcon kite 3.5 t = 34 kN (Kitepower website).
+# The tether diameter follows from F_max and the allowable stress (Joshi et al. 2024).
+FMAX_VALUES = [20e3, 30e3, 40e3, 50e3, 60e3, 80e3, 100e3]   # [N]
+FMAX_CLASSES = list(range(1, 11))
+
+# ---- Extra: sensitivity of the kite area to the model parameters (one class) ------------
 SENS_CLASS = 7
-
-# Height study windows (z_min, z_max) [m], all with a 100 m stroke. Wind above 400 m is
-# extrapolated (data_analysis.EXTRA_HEIGHTS); that region is shaded in the figure.
-HEIGHT_WINDOWS = [(50, 150), (100, 200), (150, 250), (200, 300), (250, 350), (300, 400),
-                  (350, 450), (400, 500)]
-
-# Maximum tether forces for the F_max study [N]
-FMAX_VALUES = [20e3, 30e3, 40e3, 50e3, 60e3, 70e3, 80e3, 90e3, 100e3]
 
 # Sensitivity study: (parameter, low, high, label); baseline values in kite_model.P
 SENSITIVITY = [
-    ('w',      1.6,  2.4,  'Kite mass per area w [kg/m2]'),
+    ('w',      1.15, 2.0,  'Kite mass per area w [kg/m2] (V3 kite / Cayon 2026)'),
     ('CLo',    0.8,  1.0,  'Lift coefficient reel-out C_L,o'),
     ('CDko',   0.18, 0.25, 'Kite drag C_D,k,o (L/D 5.0 / 3.6)'),
     ('vmin',   1.0,  3.0,  'Minimum reeling speed v_min [m/s]'),
