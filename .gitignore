@@ -1,0 +1,10 @@
+# Python bytecode (regenerated on every run)
+__pycache__/
+*.py[cod]
+
+# Local environments and editor settings
+.venv/
+.ipynb_checkpoints/
+.spyproject/
+.vscode/
+.idea/
