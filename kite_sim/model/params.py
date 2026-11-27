@@ -55,7 +55,7 @@ P = dict(
     CDc=1.1,         # [-]     tether cross-flow drag coefficient           van der Vlugt 2019, Table 1
 
     # Winch limits
-    vmin=2.0,        # [m/s]   minimum reeling speed (both phases)          Schelbergen 2020, Table 4
+    vmin=1.0,        # [m/s]   minimum reeling speed (both phases)          Schelbergen 2020, Table 4
     vmax=10.0,       # [m/s]   maximum reeling speed (both phases)          Schelbergen 2020, Table 4
     amax=5.0,        # [m/s2]  drum acceleration                            Joshi 2024, Table 4
 
