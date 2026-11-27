@@ -75,9 +75,7 @@ def main():
         pl._style(ax, title, 'wind class', unit)
     pl._mark_infeasible(axs[0], x, new)
     axs[0].legend(frameon=False, fontsize=8)
-    fig.text(0.01, 0.01, pl._base_note() + '. Same wind data and design inputs; only the model changes differ.',
-             fontsize=8, color=pl.C_GREY)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.tight_layout()
     fig.savefig(OUT / 'design_impact.png', dpi=150)
     print(f'saved {OUT / "design_impact.png"}')
 

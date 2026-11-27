@@ -8,7 +8,20 @@ but find the optimum less precisely.
               mean power for the example kite (so ~1.5% more kite area).
     ACCURATE  used for the worked example in the model doc; use it to check a final design.
 NUM is the active setting: change the line  NUM = FAST  below to switch.
+
+SPEED (numba)
+    The inner loops (state() and the reel-in loop) are compiled with numba (pip install numba),
+    which makes a sizing run about 30-50x faster. The first call compiles them (a few seconds);
+    the result is cached in __pycache__. Without numba the same code runs as plain Python.
 """
+
+try:
+    from numba import njit
+except ImportError:                     # no numba: the decorated functions stay plain Python
+    def njit(*args, **kwargs):
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            return args[0]
+        return lambda fun: fun
 
 
 # =====================================================================================

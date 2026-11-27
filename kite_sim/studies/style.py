@@ -37,8 +37,8 @@ def _mark_infeasible(ax, xs, rs, y_frac=0.04):
             ax.text(x, y_frac, 'no data\npoints', ha='center', va='bottom',
                     fontsize=7, color=C_GREY, transform=tr)
         elif not r['feasible']:
-            ax.text(x, y_frac, f'not\nfeasible\n(> {S_MAX:.0f} m²)', ha='center', va='bottom',
-                    fontsize=7, color=C_GREY, transform=tr)
+            ax.text(x, y_frac, f'not feasible (> {S_MAX:.0f} m²)', ha='center', va='bottom',
+                    fontsize=7, color=C_GREY, rotation=90, transform=tr)
 
 
 def _base_note():

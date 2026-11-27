@@ -7,9 +7,9 @@ import numpy as np
 from math import sin, radians, degrees, pi
 
 from .params import P
-from .numerics import NUM, solve
-from .geometry import coeffs
-from .flight_state import state
+from .numerics import NUM, njit, solve
+from .geometry import coeffs, tether_drag
+from .flight_state import state, state_core
 
 
 # =====================================================================================
@@ -43,57 +43,125 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=None, theta_min=radians(
         P         : [W]    average reel-in power E / t
         theta_end : [rad]  polar angle at the end of reel-in (start of the transition)
         hist      : list of dicts (t, r, beta [deg], F, v) per step, only if record=True
+
+    The loop is in retraction_core() (compiled with numba); this wrapper unpacks the inputs.
     """
     dT = NUM['dT'] if dT is None else dT
-    r, theta = geo['rmax'], theta0
-    dt_step = geo['dl'] / vw * dT       # time step (van der Vlugt 2019, Eq. 43-44)
+    # Rows needed for the history: each step reels in at least v_min * dl / vw * dT
+    rows = int(vw / (max(p['vmin'], 1e-3) * dT)) + 10 if record else 0
+    hist = np.empty((rows, 5))
+    ok, t, E, theta_end, n = retraction_core(
+        float(vw), float(S), float(m), float(geo['rmax']), float(geo['rmin']), float(geo['dl']),
+        float(geo['dt']), float(p['rho_t']), float(p['CDc']), float(p['CLi']), float(p['CDki']),
+        float(geo['rho']), float(p['g']), float(p['vmin']), float(p['vmax']), float(Fmax),
+        float(theta0), float(Fi), float(dT), float(theta_min), float(NUM['tol_state']), hist)
+    if not ok:
+        return None
+    steps = [dict(t=float(h[0]), r=float(h[1]), beta=float(h[2]), F=float(h[3]), v=float(h[4]))
+             for h in hist[:min(n, rows)]]
+    return dict(t=t, E=E, P=E / t, theta_end=theta_end, hist=steps)
+
+
+@njit(cache=True)
+def retraction_core(vw, S, m, rmax, rmin, dl, dt, rho_t, CDc, CLi, CDki, rho, g, vmin, vmax,
+                    Fmax, theta0, Fi, dT, theta_min, tol, hist):
+    """
+    retraction() on plain numbers (compiled with numba). Inputs as retraction(), with geo and p
+    unpacked; hist is an array (rows, 5) that receives (t, r, beta [deg], F, v) per step.
+    Output: (ok, t, E, theta_end, n); ok False = reel-in not possible, n = number of steps.
+    """
+    r, theta = rmax, theta0
+    dt_step = dl / vw * dT              # time step (van der Vlugt 2019, Eq. 43-44)
     t = E = 0.0
-    hist = []
-
-    while r > geo['rmin']:
-        # Airborne tether mass and depowered coefficients at the CURRENT tether length
-        mt = pi / 4 * geo['dt']**2 * p['rho_t'] * r
-        _, (CL_in, CD_in) = coeffs(S, geo['dt'], r, p)
-
-        # Flight state for a trial reeling factor; reel-in: phi = 0, chi = 180 deg (flying up)
-        def flight(f):
-            return state(vw, f, S, m, mt, CL_in, CD_in, theta, 0.0, pi, geo['rho'], p)
+    n = 0
+    no_trace = np.empty((0, 7))         # state_core() records nothing
+    while r > rmin:
+        # Airborne tether mass and depowered coefficients at the CURRENT tether length (coeffs())
+        mt = pi / 4 * dt**2 * rho_t * r
+        CL_in, CD_in = CLi, CDki + tether_drag(dt, r, CDc, S)
+        args = (vw, S, m, mt, CL_in, CD_in, theta, rho, g, tol, no_trace)
 
         # M21: find the reeling factor that gives exactly the set force Fi,
         # within the speed limits (negative f = reeling in)
-        f_fast, f_slow = -p['vmax'] / vw, -p['vmin'] / vw
-        s_fast, s_slow = flight(f_fast), flight(f_slow)
-        if s_fast is None:
-            return None                                  # no steady flight even at full speed
-        if s_fast['Ftg'] <= Fi:
-            f, s = f_fast, s_fast                        # speed limit reached: force below Fi
-        elif s_slow is not None and s_slow['Ftg'] >= Fi:
-            f, s = f_slow, s_slow                        # slowest reel-in still pulls more than Fi
+        f_fast, f_slow = -vmax / vw, -vmin / vw
+        ok_fast, F_fast, lam_fast = _reel_in(f_fast, *args)
+        ok_slow, F_slow, lam_slow = _reel_in(f_slow, *args)
+        if not ok_fast:
+            return False, t, E, theta, n                 # no steady flight even at full speed
+        if F_fast <= Fi:
+            f, F, lam = f_fast, F_fast, lam_fast         # speed limit reached: force below Fi
+        elif ok_slow and F_slow >= Fi:
+            f, F, lam = f_slow, F_slow, lam_slow         # slowest reel-in still pulls more than Fi
         else:                                            # solve force(f) = Fi
-            def force_error(x):
-                sx = flight(x)
-                return (sx['Ftg'] if sx else 0.0) - Fi
-            f = solve(force_error, f_fast, f_slow, xtol=1e-4)
-            s = flight(f)
-            if s is None:
-                return None
+            f = _solve_reel_in(f_fast, f_slow, Fi, args)
+            ok, F, lam = _reel_in(f, *args)
+            if not ok:
+                return False, t, E, theta, n
 
-        if s['Ftg'] > Fmax:
-            return None                                  # not allowed: tether overloaded
+        if F > Fmax:
+            return False, t, E, theta, n                 # not allowed: tether overloaded
 
         # Add energy and time; the last step is shortened to land exactly on rmin
         v = abs(f) * vw
-        step = min(dt_step, (r - geo['rmin']) / v)
-        E += s['Ftg'] * v * step
+        step = min(dt_step, (r - rmin) / v)
+        E += F * v * step
         t += step
-        if record:
-            hist.append(dict(t=t, r=r, beta=90 - degrees(theta), F=s['Ftg'], v=v))
+        if n < hist.shape[0]:
+            hist[n, 0] = t
+            hist[n, 1] = r
+            hist[n, 2] = 90 - degrees(theta)
+            hist[n, 3] = F
+            hist[n, 4] = v
+        n += 1
 
         # Move the kite: tether shortens, kite climbs along the sphere at lam * vw
         r -= v * step
-        theta = max(theta - s['lam'] * vw * step / r, theta_min)
+        theta = max(theta - lam * vw * step / r, theta_min)
+    return True, t, E, theta, n
 
-    return dict(t=t, E=E, P=E / t, theta_end=theta, hist=hist)
+
+@njit(cache=True)
+def _reel_in(f, vw, S, m, mt, CL, CD, theta, rho, g, tol, no_trace):
+    """Reel-in flight state at reeling factor f (phi = 0, chi = 180 deg: flying up): (ok, Ftg, lam)."""
+    s = state_core(vw, f, S, m, mt, CL, CD, theta, 0.0, pi, rho, g, tol, no_trace)
+    return s[0], s[7], s[2]
+
+
+@njit(cache=True)
+def _solve_reel_in(a, b, Fi, args, xtol=1e-4, maxiter=60):
+    """
+    Reeling factor in [a, b] where the reel-in force equals Fi: solve() of numerics.py
+    (Illinois method), with force(f) = Ftg (0 if no flight) - Fi.
+    """
+    ok, F, _ = _reel_in(a, *args)
+    fa = (F if ok else 0.0) - Fi
+    ok, F, _ = _reel_in(b, *args)
+    fb = (F if ok else 0.0) - Fi
+    if fa == 0:
+        return a
+    if fb == 0:
+        return b
+    if fa * fb > 0:
+        raise ValueError('solve(): no sign change between a and b')
+    side = 0
+    x = a
+    for _ in range(maxiter):
+        x = (a * fb - b * fa) / (fb - fa)       # secant through the two bracket ends
+        ok, F, _ = _reel_in(x, *args)
+        fx = (F if ok else 0.0) - Fi
+        if fx * fb > 0:                         # root lies between a and x
+            b, fb = x, fx
+            if side == -1:
+                fa /= 2                         # Illinois step: avoid a stuck end
+            side = -1
+        else:                                   # root lies between x and b
+            a, fa = x, fx
+            if side == +1:
+                fb /= 2
+            side = +1
+        if abs(b - a) < xtol or fx == 0:
+            break
+    return x
 
 
 # =====================================================================================

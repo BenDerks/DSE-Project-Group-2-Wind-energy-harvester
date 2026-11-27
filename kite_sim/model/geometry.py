@@ -6,6 +6,7 @@ geometry.py - Block A (geometry, wind altitude, tether) and block B (aerodynamic
 from math import sin, sqrt, radians, pi, exp
 
 from .params import P
+from .numerics import njit
 
 
 # =====================================================================================
@@ -81,6 +82,11 @@ def coeffs(S, dt, r, p=P):
 
     The resultant coefficient C_R and the lift-to-drag ratio G* (M10) are computed in state().
     """
-    # M9: tether drag lumped at the kite; 1/4 of the tether's drag area acts as kite drag
-    tether = 0.25 * dt * r * p['CDc'] / S
+    tether = tether_drag(dt, r, p['CDc'], S)
     return (p['CLo'], p['CDko'] + tether), (p['CLi'], p['CDki'] + tether)
+
+
+@njit(cache=True)
+def tether_drag(dt, r, CDc, S):
+    """M9: tether drag lumped at the kite; 1/4 of the tether's drag area acts as kite drag [-]."""
+    return 0.25 * dt * r * CDc / S

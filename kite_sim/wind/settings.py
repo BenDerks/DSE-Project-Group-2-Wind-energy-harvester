@@ -26,12 +26,14 @@ HEIGHTS = [40, 100, 200, 300, 400]
 EXTRA_HEIGHTS = [500]
 DIST_HEIGHTS = HEIGHTS + EXTRA_HEIGHTS      # rows of the class distribution tables
 
-# Wind classes by annual MEAN wind speed at CLASS_HEIGHT; edges in m/s. 100 m is a common
-# reference for both concepts (turbine hub at 40 m, kite at 100-400 m). The first class has
-# no lower, the last no upper limit. 10 classes of 0.5 m/s span the data: 8,486 points (cells
-# with >= 25% windy land), 4.4-13.2 m/s at 100 m, median 6.5 m/s. 7.5 m/s is an edge (lower
-# bound of IEC wind class III, the market-analysis threshold). Kite runs skip empty classes.
-CLASS_HEIGHT = 100
+# Wind classes by annual MEAN wind speed at CLASS_HEIGHT; edges in m/s. Like IEC classes at a
+# turbine's hub height, the class height is the kite's operating height: 225 m, the mean
+# reel-out altitude of the 150-300 m window. 225 m is not a data height; the mean speed there
+# is interpolated linearly between 200 and 300 m (mean_speed_at), as wind_bins() does for the
+# kite. The first class has no lower, the last no upper limit. 8,486 points (cells with >= 25%
+# windy land), 4.6-14.1 m/s at 225 m, median 7.6 m/s. 7.5 m/s is an edge (lower bound of IEC
+# wind class III, the market-analysis threshold). Kite runs skip empty classes.
+CLASS_HEIGHT = 225
 CLASS_EDGES = [0.0, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, np.inf]
 
 

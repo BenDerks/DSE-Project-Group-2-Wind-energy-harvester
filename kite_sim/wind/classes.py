@@ -45,20 +45,32 @@ def load_data(path=DATA_FILE, min_coverage=0.9, countries=None):
 # =====================================================================================
 # 2. WIND CLASSES AND THEIR SHARES
 # =====================================================================================
+def mean_speed_at(df, z):
+    """
+    Mean wind speed of every point at height z [m], linear in height between the data heights
+    (the same interpolation as wind_bins(), so it is the mean of the wind the kite sees at z).
+    Output: Series [m/s], one value per point.
+    """
+    if not HEIGHTS[0] <= z <= HEIGHTS[-1]:
+        raise ValueError(f'z = {z} m is outside the data heights {HEIGHTS[0]}-{HEIGHTS[-1]} m')
+    v = df[[f'h{h}_mean_speed_m_s' for h in HEIGHTS]].to_numpy()
+    return pd.Series([np.interp(z, HEIGHTS, row) for row in v], index=df.index)
+
+
 def assign_classes(df, height=CLASS_HEIGHT, edges=CLASS_EDGES):
     """
     Assign every point a wind class by its mean wind speed at the reference height.
 
     Inputs
         df     : DataFrame from load_data()
-        height : [m]   reference height (must be one of HEIGHTS)
+        height : [m]   reference height (within HEIGHTS; interpolated between them)
         edges  : [m/s] class edges; class i holds edges[i] <= mean speed < edges[i+1]
 
     Output
         copy of df with column 'wind_class' (1, 2, ... len(edges)-1)
     """
     df = df.copy()
-    speed = df[f'h{height}_mean_speed_m_s']
+    speed = mean_speed_at(df, height)
     df['wind_class'] = pd.cut(speed, bins=edges, right=False, labels=False) + 1
     return df
 

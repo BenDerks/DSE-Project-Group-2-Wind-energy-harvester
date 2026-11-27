@@ -7,19 +7,23 @@ WHAT IT DOES
     case (wind class + design inputs + parameter changes) it sizes the kite for the target
     mean power and plots how the kite changes.
 
-FIGURES (outputs/figures/)
-    1 size_mass_per_class  kite area and airborne + tether mass per wind class (baseline design)
-    2 size_vs_height       kite area against z_min and z_max (classes C5, C7, C9; z_max <= 300 m)
-    3 size_vs_ld           kite area against the kite lift-to-drag ratio, one line per class
-    4 size_vs_fmax         kite area against the maximum tether force, one line per class
-    5 power_curves         power curve of the kite designed for each class (extra)
-    6 sensitivity          tornado chart: which model parameter moves the kite area most (extra)
-    7 wind_classes         number of data points (areas) per mean wind speed, per class (extra)
-
-    Hours out of operation are deliberately not plotted: they follow after the kite sizing.
+FIGURES (outputs/results_min_area/ or outputs/results_multi_objective/, see --objective)
+    1 size_vs_height       kite area against z_min and z_max, every class (z_max <= 300 m)
+    2 size_vs_ld           kite area against the kite lift-to-drag ratio, one line per class
+    3 size_vs_fmax         kite area against the maximum tether force, one line per class
+    4 power_curves         power curve of the kite designed for each class (extra)
+    5 sensitivity          tornado chart: which model parameter moves the kite area most (extra)
+    6 wind_classes         number of data points (areas) per mean wind speed, per class (extra)
+    7 best_designs         FINAL SUMMARY: best design per class, figure + best_designs.csv
+    8 tradeoff             (multi only) kite area against longest outage per candidate, Pareto
+                           front and chosen design; every candidate in all_designs.csv
 
 HOW TO RUN
-    python plotting.py                                all figures
+    python plotting.py                                all figures, best design = smallest kite
+    python plotting.py --objective multi              best design = weighted score of kite area,
+                                                      downtime and longest continuous downtime over
+                                                      every height window x F_max (needs the hourly
+                                                      ERA5 wind of windres and pyarrow)
     python plotting.py size_vs_ld size_vs_fmax        only these figures
     python plotting.py --workers 4                    number of parallel processes
     python plotting.py --fresh                        ignore cached results and recompute
@@ -44,8 +48,11 @@ CODE (kite_sim/studies/; re-exported here, so  import plotting as pl  works as b
     cases.py              make_case(), the cases each figure needs, result cache
     runner.py             run_case(), run_cases() (parallel)
     style.py              shared axis style and labels
-    figures_per_class.py  figures 1, 5, 7
-    figures_studies.py    figures 2, 3, 4, 6
+    figures_per_class.py  figures 4, 6
+    figures_studies.py    figures 1, 2, 3, 5
+    selection.py          candidates and best design per objective (settings: OBJECTIVE_WEIGHTS)
+    downtime.py           downtime and continuous downtime from the hourly ERA5 wind
+    figures_summary.py    figures 7, 8
     cli.py                FIGURES and main()
 """
 

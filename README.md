@@ -12,3 +12,7 @@ Project 2 - Open-hardware wind energy harvester for emergency and disaster relie
 
 The three top-level files re-export everything from their package, so `import kite_model as km`
 and the other imports work as before. The module list is in `kite_sim/__init__.py`.
+
+Needs `numpy`, `pandas` and `matplotlib`. Install `numba` too (`pip install numba`): it compiles
+the inner loops of the model, so a kite sizing takes seconds instead of minutes. Without numba
+the code gives the same results, only slower.

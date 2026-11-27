@@ -115,6 +115,12 @@ def cases_fmax():
     return [make_case(c, Fmax=F) for c in FMAX_CLASSES for F in FMAX_VALUES]
 
 
+def cases_grid():
+    """Every flying-height window x every F_max in FMAX_VALUES, for every class (objective multi)."""
+    return [make_case(c, zmin=a, zmax=b, Fmax=F) for c in range(1, N_CLASSES + 1)
+            for a, b in height_windows() for F in FMAX_VALUES]
+
+
 def cases_sensitivity():
     cases = [make_case(SENS_CLASS)]
     for key, lo, hi, _ in SENSITIVITY:

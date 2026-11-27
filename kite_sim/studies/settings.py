@@ -11,11 +11,30 @@ from pathlib import Path
 # SETTINGS - change these to run other studies
 # =====================================================================================
 REPO = Path(__file__).resolve().parents[2]          # repository root
-FIG_DIR = REPO / 'outputs' / 'figures'
+
+# ---- Design objective and output folder:  python plotting.py --objective area | multi -------
+#   area   best design = smallest kite area (one design input changed at a time)
+#   multi  best design = lowest weighted score of kite area, downtime and longest continuous
+#          downtime, over the full grid of flying-height windows x F_max values (selection.py).
+#          Each goal is scored as the fraction worse than the best design of the class.
+RESULT_DIRS = dict(area=REPO / 'outputs' / 'results_min_area',
+                   multi=REPO / 'outputs' / 'results_multi_objective')
+OBJECTIVE_WEIGHTS = dict(area=1 / 3, downtime=1 / 3, longest_downtime=1 / 3)
+RUN = dict(objective='area')                        # set by main(), read by the summary figures
+FIG_DIR = RESULT_DIRS['area']
+
+# Hourly ERA5 wind of the windres project (one parquet per cell: u10, v10, u100, v100), used for
+# the continuous downtime of objective multi. Reading it needs pyarrow (pip install pyarrow).
+HOURLY_DIR = REPO.parent / 'windres' / 'data' / 'world_2024' / 'timeseries' / 'era5'
+DOWNTIME_CACHE = REPO / 'outputs' / 'downtime_cache.pkl'
 CACHE_FILE = REPO / 'outputs' / 'kite_cache.pkl'
 
 # Baseline design; each study changes one thing [m, m, N, W]
-BASE = dict(zmin=100.0, zmax=200.0, Fmax=40e3, P_target=30e3)
+BASE = dict(zmin=100.0, zmax=200.0, Fmax=50e3, P_target=30e3)
+
+# Highest maximum tether force a design may use [N]: caps the F_max study (FMAX_VALUES) and the
+# designs the best-design summary (figures_summary.py) can pick.
+FMAX_LIMIT = 50e3
 
 # Largest kite area the sizing loop may use [m2]. A search bound for now; should become S_max
 # from the volume budget. Classes that need more are shown as 'not feasible'.
@@ -37,7 +56,7 @@ SITE_ELEVATION = {}
 HEIGHT_ZMIN = [50, 75, 100, 125, 150]              # [m]
 HEIGHT_STROKES = [50, 100, 150]                    # [m] z_max - z_min
 HEIGHT_ZMAX_LIMIT = 300                            # [m]
-HEIGHT_CLASSES = [5, 7, 9]                         # C5 6.5-7.0, C7 7.5-8.0, C9 8.5-9.0 m/s at 100 m
+HEIGHT_CLASSES = list(range(1, 11))                # every wind class (C1-C10)
 
 # ---- Study 3: kite lift-to-drag ratio (C_L,o fixed at 0.9, C_D,k,o = C_L,o / (L/D)) ----
 # Value -> source. 4.5 is the baseline in kite_model.P.
@@ -54,7 +73,7 @@ LD_CLASSES = list(range(1, 11))
 # ---- Study 4: maximum tether force -----------------------------------------------------
 # A design choice. For reference: Kitepower Falcon kite 3.5 t = 34 kN (Kitepower website).
 # The tether diameter follows from F_max and the allowable stress (Joshi et al. 2024).
-FMAX_VALUES = [20e3, 30e3, 40e3, 50e3, 60e3, 80e3, 100e3]   # [N]
+FMAX_VALUES = [F for F in (20e3, 30e3, 40e3, 50e3, 60e3, 80e3, 100e3) if F <= FMAX_LIMIT]  # [N]
 FMAX_CLASSES = list(range(1, 11))
 
 # ---- Extra: sensitivity of the kite area to the model parameters (one class) ------------

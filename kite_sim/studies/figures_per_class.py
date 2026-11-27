@@ -6,52 +6,15 @@ figures_per_class.py - Figures with one value per wind class (baseline design)
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .. import model as km
 from .. import wind as da
-from .settings import BASE, C_GREY, C_KITE, C_TETHER, S_MAX
+from .settings import C_KITE, C_TETHER
 from .cases import N_CLASSES, _key, cases_per_class
-from .style import _base_note, _style, short_label
+from .style import _style, short_label
 
 
 # =====================================================================================
 # FIGURES
 # =====================================================================================
-def fig_size_mass_per_class(res, df=None):
-    """
-    Study 1: kite area and airborne + tether mass for every wind class, in one graph.
-
-    Why: the two numbers per class that feed the volume and mass budget, side by side.
-    Baseline design; classes where no kite up to S_MAX reaches the target are labelled.
-    """
-    rs = [res[_key(c)] for c in cases_per_class()]
-    x = np.arange(1, N_CLASSES + 1)
-    S = np.array([r['S'] for r in rs])
-    M = np.array([r['m'] + r['mt_tot'] if r['feasible'] else np.nan for r in rs])
-    fig, ax = plt.subplots(figsize=(11, 5.2))
-    ax.bar(x - 0.2, S, 0.4, color=C_KITE, label='projected kite area S [m²]')
-    ax.bar(x + 0.2, M, 0.4, color=C_TETHER, label='kite + control unit + tether mass [kg]')
-    for xi, s_, m_ in zip(x, S, M):
-        if np.isfinite(s_):
-            ax.text(xi - 0.2, s_, f'{s_:.0f}', ha='center', va='bottom', fontsize=7.5)
-            ax.text(xi + 0.2, m_, f'{m_:.0f}', ha='center', va='bottom', fontsize=7.5)
-    bad = [xi for xi, r in zip(x, rs) if not r['feasible']]
-    if bad:
-        which = f'C{min(bad)}' if min(bad) == max(bad) else f'C{min(bad)}-C{max(bad)}'
-        ax.text(0.5 * (min(bad) + max(bad)), 0.05 * np.nanmax(np.r_[M, 1.0]),
-                f'{which}:\nno kite up to\n{S_MAX:.0f} m²\nreaches 30 kW',
-                ha='center', fontsize=7.5, color=C_GREY)
-    ax.set_xlim(0.4, N_CLASSES + 0.6)
-    ax.set_xticks(x, [short_label(c) for c in x], fontsize=8)
-    _style(ax, 'Kite size and mass per wind class',
-           f'wind class (mean wind speed at {da.CLASS_HEIGHT} m, m/s)', 'area [m²]  /  mass [kg]')
-    ax.legend(frameon=False, fontsize=8, loc='upper right')
-    LD = km.P['CLo'] / km.P['CDko']
-    fig.text(0.01, 0.01, _base_note() + f'. Kite L/D {LD:.1f}, {km.P["w"]:.2f} kg/m². '
-             'Tether mass for the full tether length.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
-    return fig
-
-
 def fig_power_curves(res, df=None):
     """Power curve of the kite designed for each class, and the wind distribution."""
     rs = [res[_key(c)] for c in cases_per_class()]
@@ -69,8 +32,7 @@ def fig_power_curves(res, df=None):
     _style(a2, 'Wind-speed distribution at the mean flying height', 'wind speed at z̄ [m/s]',
            'probability [%]')
     a2.set_xlim(0, 30)
-    fig.text(0.01, 0.005, _base_note() + '. Mechanical power at the drum.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    fig.tight_layout()
     return fig
 
 
@@ -83,7 +45,7 @@ def fig_wind_classes(res, df=None):
     land area (cell area shrinks with latitude) and population.
     """
     summ = da.class_summary(df)
-    v = df[f'h{da.CLASS_HEIGHT}_mean_speed_m_s']
+    v = da.mean_speed_at(df, da.CLASS_HEIGHT)
     edges = np.arange(np.floor(v.min() * 4) / 4, np.ceil(v.max() * 4) / 4 + 0.25, 0.25)
     blues = plt.cm.Blues(np.linspace(0.3, 0.95, N_CLASSES))
 
@@ -115,10 +77,7 @@ def fig_wind_classes(res, df=None):
     _style(a2, 'Share of each wind class', f'wind class (mean wind speed at {da.CLASS_HEIGHT} m, m/s)',
            'share [%]')
     a2.legend(frameon=False, fontsize=8, ncol=3)
-    fig.text(0.01, 0.005, 'Each ERA5 cell is one area of about 28 x 28 km at the equator '
-             '(smaller towards the poles). Classes from data_analysis.CLASS_EDGES.',
-             fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    fig.tight_layout()
     return fig
 
 

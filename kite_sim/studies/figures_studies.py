@@ -5,15 +5,13 @@ figures_studies.py - Figures of the height, kite L/D, F_max and sensitivity stud
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.transforms import blended_transform_factory
 
-from .. import model as km
 from .. import wind as da
-from .settings import (BASE, C_GREY, C_KITE, C_LINES, C_TETHER, DISPLAY_SCALE, FMAX_CLASSES,
-                       FMAX_VALUES, HEIGHT_CLASSES, HEIGHT_STROKES, HEIGHT_ZMAX_LIMIT, HEIGHT_ZMIN,
-                       LD_CLASSES, LD_VALUES, S_MAX, SENS_CLASS, SENSITIVITY)
+from .settings import (BASE, C_GREY, C_KITE, C_TETHER, DISPLAY_SCALE, FMAX_CLASSES, FMAX_VALUES,
+                       HEIGHT_CLASSES, HEIGHT_STROKES, HEIGHT_ZMAX_LIMIT, HEIGHT_ZMIN, LD_CLASSES,
+                       LD_VALUES, SENS_CLASS, SENSITIVITY)
 from .cases import N_CLASSES, _key, ld_case, make_case
-from .style import _base_note, _style, short_label
+from .style import _style
 
 
 # =====================================================================================
@@ -39,12 +37,15 @@ def _class_lines(ax, xs, rows_per_class):
 def fig_size_vs_height(res, df=None):
     """
     Study 2: kite area against the lowest flying height z_min, one line per stroke
-    (z_max - z_min), one panel per class in HEIGHT_CLASSES. The baseline is marked.
+    (z_max - z_min), one panel per class in HEIGHT_CLASSES (up to 5 per row, each with its own y-scale).
+    The baseline is marked; missing points: no kite up to S_MAX reaches the target.
     """
-    fig, axs = plt.subplots(1, len(HEIGHT_CLASSES), figsize=(5 * len(HEIGHT_CLASSES), 4.6), sharey=True)
-    axs = np.atleast_1d(axs)
+    ncol = min(5, len(HEIGHT_CLASSES))
+    nrow = -(-len(HEIGHT_CLASSES) // ncol)
+    fig, axs = plt.subplots(nrow, ncol, figsize=(3.6 * ncol, 3.3 * nrow + 0.6), squeeze=False)
+    axs = axs.ravel()
     cols = ['#9ecae1', '#2b6cb0', '#08306b']
-    for ax, cls in zip(axs, HEIGHT_CLASSES):
+    for i, (ax, cls) in enumerate(zip(axs, HEIGHT_CLASSES)):
         for d, col in zip(HEIGHT_STROKES, cols):
             zs = [a for a in HEIGHT_ZMIN if a + d <= HEIGHT_ZMAX_LIMIT]
             rows = [res[_key(make_case(cls, zmin=a, zmax=a + d))] for a in zs]
@@ -54,14 +55,16 @@ def fig_size_vs_height(res, df=None):
         if base['feasible']:
             ax.plot(BASE['zmin'], base['S'], 's', color='#d97706', ms=8, zorder=3,
                     label=f"baseline {BASE['zmin']:.0f}-{BASE['zmax']:.0f} m")
-        _style(ax, da.CLASS_NAMES[cls - 1], 'lowest flying height z_min [m]',
-               'projected kite area S [m²]' if cls == HEIGHT_CLASSES[0] else None)
+        _style(ax, da.CLASS_NAMES[cls - 1],
+               'lowest flying height z_min [m]' if i >= len(HEIGHT_CLASSES) - ncol else None,
+               'kite area S [m²]' if i % ncol == 0 else None)
+        ax.title.set_fontsize(10)
         ax.set_xticks(HEIGHT_ZMIN)
-    axs[0].legend(frameon=False, fontsize=8)
-    fig.text(0.01, 0.01, f'F_max {BASE["Fmax"] / 1e3:.0f} kN, target {BASE["P_target"] / 1e3:.0f} kW mean, '
-             f'elevation 25° (tether length = 2.4 x height), z_max at most {HEIGHT_ZMAX_LIMIT} m. '
-             f'Missing points: no kite up to {S_MAX:.0f} m² reaches the target.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    for ax in axs[len(HEIGHT_CLASSES):]:
+        ax.set_visible(False)
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper center', ncol=len(labels), frameon=False, fontsize=8.5)
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.45 / fig.get_figheight()))
     return fig
 
 
@@ -69,19 +72,15 @@ def fig_size_vs_ld(res, df=None):
     """Study 3: kite area against the kite lift-to-drag ratio (sources in LD_VALUES), per class."""
     LDs = list(LD_VALUES)
     fig, ax = plt.subplots(figsize=(11, 5.8))
-    none = _class_lines(ax, LDs, [(c, [res[_key(ld_case(c, LD))] for LD in LDs]) for c in LD_CLASSES])
+    _class_lines(ax, LDs, [(c, [res[_key(ld_case(c, LD))] for LD in LDs]) for c in LD_CLASSES])
     for LD in LDs:
         ax.axvline(LD, color='#eeeeee', lw=0.8, zorder=0)
     ax.set_xticks(LDs, [f'{LD:g}' for LD in LDs])
     ax.set_xlim(min(LDs) - 0.15, max(LDs) + 0.5)
     _style(ax, 'Kite area against kite lift-to-drag ratio', 'kite L/D (C_L,o = 0.9 fixed) [-]',
            'projected kite area S [m²]')
-    ax.legend(frameon=False, fontsize=7.5, ncol=2, loc='upper right')
-    src = '   '.join(f'{LD:g}: {txt}' for LD, txt in LD_VALUES.items())
-    note = _base_note() + f'. Not feasible up to {S_MAX:.0f} m² at any L/D: {", ".join(none) or "none"}.'
-    fig.text(0.01, 0.055, note, fontsize=7.5, color=C_GREY)
-    fig.text(0.01, 0.012, 'Sources: ' + src, fontsize=6.5, color=C_GREY, wrap=True)
-    fig.tight_layout(rect=(0, 0.09, 1, 1))
+    ax.legend(frameon=False, fontsize=7.5, loc='upper left', bbox_to_anchor=(1.01, 1))
+    fig.tight_layout()
     return fig
 
 
@@ -89,22 +88,19 @@ def fig_size_vs_fmax(res, df=None):
     """Study 4: kite area against the maximum tether force, one line per class."""
     F = np.array(FMAX_VALUES) / 1e3
     fig, ax = plt.subplots(figsize=(11, 5.6))
-    none = _class_lines(ax, F, [(c, [res[_key(make_case(c, Fmax=f))] for f in FMAX_VALUES])
-                                for c in FMAX_CLASSES])
+    _class_lines(ax, F, [(c, [res[_key(make_case(c, Fmax=f))] for f in FMAX_VALUES])
+                         for c in FMAX_CLASSES])
     top = ax.get_ylim()[1]
     ax.axvline(BASE['Fmax'] / 1e3, color=C_GREY, ls=':', lw=1)
     ax.text(BASE['Fmax'] / 1e3, top, ' baseline', fontsize=7.5, color=C_GREY, va='top')
     ax.axvline(34.3, color='#d97706', ls=':', lw=1)
     ax.text(34.3, top * 0.93, 'Kitepower\nFalcon 3.5 t ', fontsize=7.5, color='#d97706', va='top', ha='right')
     ax.set_xticks(F)
-    ax.set_xlim(F.min() - 3, F.max() + 10)
+    ax.set_xlim(F.min() - 3, F.max() + 3)
     _style(ax, 'Kite area against maximum tether force', 'maximum tether force F_max [kN]',
            'projected kite area S [m²]')
-    ax.legend(frameon=False, fontsize=7.5, ncol=2, loc='upper right')
-    fig.text(0.01, 0.01, f'Heights {BASE["zmin"]:.0f}-{BASE["zmax"]:.0f} m, target {BASE["P_target"] / 1e3:.0f} kW '
-             f'mean; tether diameter follows from F_max (Joshi et al. 2024). Not feasible up to {S_MAX:.0f} m² '
-             f'at any F_max: {", ".join(none) or "none"}.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    ax.legend(frameon=False, fontsize=7.5, loc='upper left', bbox_to_anchor=(1.01, 1))
+    fig.tight_layout()
     return fig
 
 
@@ -138,9 +134,7 @@ def fig_sensitivity(res, df=None):
     ax.legend(frameon=False, loc='lower right')
     lim = np.nanmax(np.abs([[r[3], r[4]] for r in rows])) if rows else 10
     ax.set_xlim(-1.2 * lim, 1.9 * lim)
-    fig.text(0.01, 0.01, _base_note() + '. Changes of about 2% or less are within the numerical '
-             'noise of kite_model.FAST.', fontsize=8, color=C_GREY)
-    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    fig.tight_layout()
     return fig
 
 
