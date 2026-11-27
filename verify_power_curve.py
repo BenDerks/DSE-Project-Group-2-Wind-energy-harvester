@@ -1,39 +1,38 @@
 """
 NOTE (27 Nov 2026): superseded by verification/run_verification.py (case "falcon"), which uses
-the Falcon brochure inputs (kite size, F_max, generator limit) and electrical conversion. This
-file is kept for reference only.
+the Falcon brochure inputs (kite size, F_max, generator limit) and electrical conversion. Kept
+for reference only.
 
 verify_power_curve.py - Compare the kite model with a published power curve
 ===========================================================================
 
-WHAT THIS FILE DOES
-    Checks kite_model.py against the power curve of an existing pumping kite system
-    (100 m2 kite, 350 m tether). It computes the model's power curve for the same kite and
-    tether, and the mean power both curves give for three mean wind speeds.
+Checks kite_model.py against the power curve of an existing pumping kite system (100 m2 kite,
+350 m tether): model curve for the same kite and tether, and the mean power both curves give
+at three mean wind speeds.
 
-FIGURES (saved in outputs/figures/)
-    verification_power_curve   reference curve against the model curve, for several F_max
+FIGURES (outputs/figures/)
+    verification_power_curve   reference against the model curve, for several F_max
     verification_mean_wind     energy per wind speed and mean power, at three mean wind speeds
 
 WHAT TO LOOK FOR
-    - Cut-in: where both curves start to give positive power.
-    - Slope: how fast the power rises between cut-in and rated (kite size and L/D).
-    - Plateau: the rated power (set by F_max * v_max in the model).
-    - Mean power: the number that sizes our kite. Agreement here matters most.
+    - Cut-in: where both curves turn positive.
+    - Slope: power rise between cut-in and rated (kite size and L/D).
+    - Plateau: rated power (F_max * v_max in the model).
+    - Mean power: sizes our kite, so agreement here matters most.
 
-DIFFERENCES THAT ARE EXPECTED (not errors in the model)
-    - The reference is probably electrical power after the generator; the model gives
-      mechanical power at the drum (model boundary). Drivetrain efficiency is ~0.8-0.9, so
-      the model may be 10-20% higher in the plateau.
+EXPECTED DIFFERENCES (not model errors)
+    - The reference is probably electrical (after the generator); the model gives mechanical
+      power at the drum (model boundary). With drivetrain efficiency ~0.8-0.9 the model may
+      be 10-20% higher on the plateau.
     - The reference goes below zero at low wind (energy used while not producing); the model
-      gives 0 below cut-in. The mean power is shown with and without these negative values.
-    - The wind speed on the reference x-axis may be at a different height than the model's
-      (model: average flying height z_bar). Not stated on the figure.
-    - The tether force limit, reel-out stroke and reeling speeds of the reference system are not
-      given; F_max is therefore varied, and the stroke is an assumption (REEL_OUT_START).
+      gives 0 below cut-in. Mean power is shown with and without the negative values.
+    - The reference wind speed may be at another height than the model's (average flying
+      height z_bar); the figure does not say.
+    - The reference's tether force limit, reel-out stroke and reeling speeds are not given, so
+      F_max is varied and the stroke is assumed (REEL_OUT_START).
 
 HOW TO RUN
-    python verify_power_curve.py            (takes a few minutes, one core)
+    python verify_power_curve.py            (a few minutes, one core)
 """
 
 from pathlib import Path
@@ -51,27 +50,25 @@ FIG_DIR = HERE / 'outputs' / 'figures'
 # =====================================================================================
 # SETTINGS
 # =====================================================================================
-# Reference power curve, read off the published figure by eye (accuracy ~ +-3 kW).
-# Wind speed [m/s], power [kW]
+# Reference power curve read off the published figure by eye (~ +-3 kW): wind [m/s], power [kW]
 REF_V = np.array([0, 1, 2, 3, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15,
                   17, 20, 25], dtype=float)
 REF_P = np.array([-6.5, -5.5, -4, -2, 1, 5, 14, 21, 32, 50, 66, 79, 90, 97, 103, 110, 114,
                   116.5, 118, 119, 120.5, 122, 123.5])
 
-# Reference system: 100 m2 kite, 350 m tether.
-# The kite area of a commercial kite is normally quoted as the flat area; the model uses the
-# projected area S = area_ratio * A. Both readings are computed (flat is the main one).
+# Reference system: 100 m2 kite, 350 m tether. Commercial kite area is normally the flat
+# area; the model uses projected area S = area_ratio * A. Both are computed (flat is main).
 REF_AREA = 100.0                     # [m2]
 TETHER_LENGTH = 350.0                # [m]  taken as the tether length at the end of reel-out
-REEL_OUT_START = 200.0               # [m]  tether length at the start of reel-out.
-                                     #      ASSUMPTION: not given for the reference system.
+REEL_OUT_START = 200.0               # [m]  tether length at the start of reel-out
+                                     #      (ASSUMPTION: not given for the reference system)
 
 # Tether force limits to try [N] (not given for the reference system)
 FMAX_VALUES = [40e3, 60e3, 80e3]
 FMAX_MAIN = 60e3                     # used for the projected-area variant and figure 2
 
-# Mean wind speeds for figure 2 [m/s], Rayleigh distribution (Weibull k = 2), the
-# distribution used for annual energy estimates in IEC 61400-12-1 (power performance)
+# Mean wind speeds for figure 2 [m/s]; Rayleigh distribution (Weibull k = 2), as used for
+# annual energy estimates in IEC 61400-12-1 (power performance)
 MEAN_WINDS = [5.0, 7.0, 9.0]
 K_RAYLEIGH = 2.0
 
@@ -90,10 +87,10 @@ C_GREY = '#9a9a9a'
 # =====================================================================================
 def model_curve(S, Fmax, p=km.P):
     """
-    Cycle power of the model at every wind speed in V_GRID.
+    Model cycle power at every wind speed in V_GRID.
 
     Inputs: S [m2] projected area, Fmax [N], p parameter dict.
-    Output: array of cycle power [kW]; 0 below cut-in and above cut-out (as in mean_power).
+    Output: cycle power [kW]; 0 below cut-in and above cut-out (as in mean_power).
     """
     beta = np.radians(p['beta_o'])
     zmin, zmax = REEL_OUT_START * np.sin(beta), TETHER_LENGTH * np.sin(beta)   # M1 inverted

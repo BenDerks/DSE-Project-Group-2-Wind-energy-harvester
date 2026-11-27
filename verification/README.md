@@ -7,6 +7,9 @@ reference's own inputs. Every value used is listed with its source in `reference
 | File | What it does |
 |---|---|
 | `run_verification.py` | Runs all four cases, saves the figures and `summary.csv` in `outputs/verification/` |
+| `common.py` | Settings, summary table and helpers shared by the cases (`model_curve()`, `rayleigh()`, `record()`) |
+| `cases_models.py` | Cases 1-2: the three-regime reference code and the van der Vlugt et al. (2019) cycles |
+| `cases_products.py` | Cases 3-4: Kitepower Falcon and SkySails PN-14 |
 | `three_regime.py` | Independent reference code: massless three-regime model (Luchsinger 2013), ported from R. Schmehl's `awe_on_mars/powercurve.py` (MIT) |
 | `vdv2019_cases.py` | The two measured pumping cycles of van der Vlugt et al. (2019), re-run with `kite_model` |
 | `references.py` | Product data: Kitepower Falcon (brochure, power curve), SkySails PN-14 (data sheet), drivetrain efficiency (Joshi et al. 2024) |

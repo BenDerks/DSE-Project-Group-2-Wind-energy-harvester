@@ -1,29 +1,23 @@
 """
 vdv2019_cases.py - Re-run the two validation cycles of van der Vlugt et al. (2019)
-=================================================================================
+==================================================================================
 
-WHAT THIS FILE DOES
-    Van der Vlugt, Bley, Noom & Schmehl (2019), "Quasi-steady model of a pumping kite power
-    system", Renewable Energy 131, 83-99 (arXiv:1705.04133), validate their model on two
-    measured pumping cycles of the TU Delft 20 kW kite power system. Their Table 1 gives every
-    input, and Tables 2 and 3 give the phase-averaged power and duration of
-      - their own model ("gravity included"), and
-      - the measurement ("experiment").
-    This file runs the same cycles with the flight-state function of kite_model.py
-    (kite_model.state) and compares.
+Van der Vlugt, Bley, Noom & Schmehl (2019), "Quasi-steady model of a pumping kite power
+system", Renewable Energy 131, 83-99 (arXiv:1705.04133), validate their model on two measured
+pumping cycles of the TU Delft 20 kW system. Table 1 gives every input; Tables 2 and 3 give
+phase-averaged power and duration of their model ("gravity included") and of the measurement
+("experiment"). This file re-runs both cycles with kite_model.state and compares.
 
-    Two ways of running are provided:
-      replica()      follows the paper as closely as possible: force-controlled phases,
-                     logarithmic wind profile (wind read at the kite's current altitude),
-                     time step dT = 0.01. Differences with the paper's model therefore point
-                     at the force balance (kite_model.state) itself.
-      kite_model_as_used()
-                     uses kite_model's own phase functions with ONE wind speed (at the
-                     average traction altitude z_mt), as in the design studies. The
-                     difference with replica() shows the effect of that simplification.
+    replica()             follows the paper as closely as possible: force-controlled phases,
+                          log wind profile read at the kite's current altitude, time step
+                          dT = 0.01. Differences with the paper's model therefore point at
+                          the force balance (kite_model.state) itself.
+    kite_model_as_used()  kite_model's own phase functions with ONE wind speed (at the average
+                          traction altitude z_mt), as in the design studies. The difference
+                          with replica() is the effect of that simplification.
 
-INPUTS: Table 1 of the paper (CASES below). L/D_k is the kite-only lift-to-drag ratio; the
-tether drag is added by kite_model.coeffs() in the same way as in the paper.
+INPUTS: Table 1 of the paper (CASES). L/D_k is the kite-only lift-to-drag ratio; tether drag
+is added by kite_model.coeffs() as in the paper.
 """
 
 import sys
@@ -68,11 +62,10 @@ def params(c):
     """
     kite_model parameter dict for one case.
 
-    The paper's model works with the resultant coefficient C_R and the kite's L/D_k, so the
-    lift and drag coefficients are derived from those two. For three of the four phases this
-    reproduces the C_L in Table 1 (0.59, 0.69, 0.17). For the moderate retraction it gives
-    C_L,i = 0.19 instead of the printed 0.15; 0.15 is inconsistent with C_R,i = 0.20 and
-    L/D_k = 3.5 (it would give C_R = 0.156), so the printed value is taken to be a typo.
+    C_L and C_D are derived from C_R and L/D_k, the quantities the paper's model uses. This
+    reproduces the Table 1 C_L for three of the four phases (0.59, 0.69, 0.17). For the
+    moderate retraction it gives C_L,i = 0.19, not the printed 0.15; 0.15 is inconsistent with
+    C_R,i = 0.20 and L/D_k = 3.5 (it would give C_R = 0.156), so it is taken to be a typo.
     """
     CLo, CDo = _cl_cd(c['CR_o'], c['LD_o'])
     CLi, CDi = _cl_cd(c['CR_i'], c['LD_i'])
@@ -103,13 +96,12 @@ def _f_for_force(F_set, flight, f_lo, f_hi):
 
 def replica(name, dT=0.01, phi_in=0.0, chi_in=pi):
     """
-    Cycle of the paper re-run with kite_model.state() in a time-stepped loop that follows
-    the paper: wind at the current kite altitude, retraction at F_t,i (chi = 180 deg),
-    transition at constant length with chi = 0 (reeling out only when the force would exceed
-    F_t,o, reeling in when it would drop below F_t,i), traction at F_t,o with the
-    representative angles of Table 1.
+    The paper's cycle re-run with kite_model.state() in a time-stepped loop, as in the paper.
 
-    Output: dict with phase mean power [kW] (P_i negative = consumed) and duration [s].
+    Wind at the current kite altitude. Retraction at F_t,i (chi = 180 deg). Transition at
+    constant length with chi = 0, reeling out only if the force would exceed F_t,o and in if it
+    would drop below F_t,i. Traction at F_t,o with the representative angles of Table 1.
+    Output: dict of phase mean power [kW] (P_i negative = consumed) and duration [s].
     """
     c = CASES[name]
     p = params(c)
@@ -129,8 +121,8 @@ def replica(name, dT=0.01, phi_in=0.0, chi_in=pi):
         mt = area_t * c['rho_t'] * r
         _, (CL, CD) = coeffs(r)
         fl = lambda f: km.state(vw, f, S, m, mt, CL, CD, theta, phi_in, chi_in, rho, p)
-        # Force control (Eq. 45): f may even be positive (reeling out) while the kite is still
-        # low and pulls more than F_t,i at zero reeling speed
+        # Force control (Eq. 45): f may be positive (reeling out) while the kite is still low
+        # and pulls more than F_t,i at zero reeling speed
         f = _f_for_force(c['F_i'], fl, -3.0, 0.95 * sin(theta))
         if f is None:
             return None
@@ -199,11 +191,11 @@ def replica(name, dT=0.01, phi_in=0.0, chi_in=pi):
 
 def kite_model_as_used(name, transition_power=None):
     """
-    The same cycle with kite_model's own phase functions and ONE wind speed (at z_mt), the
-    way the design studies use the model: geometry() for tether and density, retraction()
-    at F_t,i, transition(), and the traction state at F_t,o from state().
+    The same cycle with kite_model's phase functions and ONE wind speed (at z_mt), as in the
+    design studies.
 
-    transition_power: None = use kite_model.transition() as it is.
+    geometry() for tether and density, retraction() at F_t,i, transition(), and the traction
+    state at F_t,o from state(). transition_power: None = kite_model.transition() as it is.
     """
     c = CASES[name]
     p = params(c)

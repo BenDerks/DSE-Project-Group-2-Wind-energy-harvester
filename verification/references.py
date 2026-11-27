@@ -1,16 +1,16 @@
 """
 references.py - Published data used to verify kite_model.py
-==========================================================
+===========================================================
 
-Every number here is taken from a public source (named next to it). Values that are NOT in
-the source and had to be assumed are marked ASSUMED, with the reason.
+Every number comes from a public source (named next to it). Values NOT in the source are
+marked ASSUMED, with the reason.
 
     FALCON     Kitepower Falcon 100 kW, product brochure and power curve
     SKYSAILS   SkySails Power PN-14 (Venyo), product data sheet
-    ETA        drivetrain efficiencies, to turn the model's mechanical power into electrical
-               power when a product reports electrical values
+    ETA        drivetrain efficiency: model mechanical power -> electrical, for products that
+               report electrical values
 
-The two other references are code and test data, in their own files:
+The other two references (code and test data) have their own files:
     three_regime.py    independent massless reference model (Luchsinger 2013; Schmehl, awe_on_mars)
     vdv2019_cases.py   two measured pumping cycles and the published model results
                        (van der Vlugt et al. 2019)
@@ -55,10 +55,10 @@ FALCON = dict(
 #   [S] SkySails Power, "Data sheet Venyo (PN-14)", REV.2, 05/2025,
 #       https://skysails-power.com/wp-content/uploads/2025/05/SkySails-Power-Data-sheet-Venyo-PN-14.pdf
 #   [C] Schmehl, AWE course slides, lecture 3 (projected vs flat area of the PN-14 kite)
-# The AEP on the data sheet is for: single system, Rayleigh distribution (k = 2), wind speed
-# at flight altitude 200 m, kite 170 m2, tether 800 m, air density 1.2 kg/m3, 100% availability,
-# 0% losses [S]. That is exactly the model's own definition (wind at the flying height,
-# power before losses), which makes this the cleanest product comparison.
+# Data-sheet AEP conditions [S]: single system, Rayleigh (k = 2), wind at flight altitude
+# 200 m, kite 170 m2, tether 800 m, air density 1.2 kg/m3, 100% availability, 0% losses.
+# This matches the model's own definition (wind at flying height, power before losses), so it
+# is the cleanest product comparison.
 SKYSAILS = dict(
     area_flat=170.0,                # [m2]                                               [S]
     proj_over_flat=90.0 / 180.0,    # [-]   projected / flat area of the PN-14 kite      [C]
@@ -78,11 +78,11 @@ SKYSAILS = dict(
 # ---------------------------------------------------------------------------------------
 # Drivetrain efficiency (mechanical at the drum -> electrical)
 # ---------------------------------------------------------------------------------------
-# Source: Joshi, Schmehl & Kruijff (2024), WES 9, 2195, Sect. 2.6.1: gearbox 95%, power
-# converter 95% (assumed values in the paper), generator up to ~95% near rated speed
-# (supplier polynomial, Eq. 35). Reel-out: P_el = eta * P_mech; reel-in: P_el = P_mech / eta.
-# Storage (another 95% and a second converter in the paper) is left out: the products report
-# the output of the ground station.
+# Source: Joshi, Schmehl & Kruijff (2024), WES 9, 2195, Sect. 2.6.1: gearbox 95% and power
+# converter 95% (assumed in the paper), generator up to ~95% near rated speed (supplier
+# polynomial, Eq. 35). Reel-out: P_el = eta * P_mech; reel-in: P_el = P_mech / eta.
+# Storage (another 95% plus a second converter in the paper) is left out: the products report
+# ground-station output.
 ETA = 0.95 * 0.95 * 0.95
 
 

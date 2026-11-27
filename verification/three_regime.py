@@ -1,33 +1,31 @@
 """
 three_regime.py - Independent reference model: massless three-regime pumping-cycle model
-=======================================================================================
+========================================================================================
 
-WHAT THIS FILE IS
-    A numpy-only port of the reference implementation by R. Schmehl,
-    https://github.com/awegroup/awe_on_mars/blob/main/powercurve.py (MIT licence),
-    which follows the control strategy of Luchsinger (2013), "Pumping cycle kite power",
-    in: Airborne Wind Energy, Springer, pp. 47-64, extended with a constant reel-out
-    elevation angle.
+Numpy-only port of R. Schmehl's reference implementation (MIT licence),
+https://github.com/awegroup/awe_on_mars/blob/main/powercurve.py, which follows the control
+strategy of Luchsinger (2013), "Pumping cycle kite power", in: Airborne Wind Energy,
+Springer, pp. 47-64, extended with a constant reel-out elevation angle.
 
-    It is used ONLY to verify kite_model.py. It is written independently of kite_model.py
-    (no shared functions), so agreement between the two is a real check.
+Used ONLY to verify kite_model.py. It shares no functions with kite_model.py, so agreement
+between the two is a real check.
 
-MODEL (differences with kite_model.py on purpose kept as in the original)
-    - Kite and tether are massless (no gravity). The tether only adds drag.
+MODEL (differences with kite_model.py kept on purpose, as in the original)
+    - Kite and tether massless (no gravity); the tether only adds drag.
     - Reel-out: azimuth 0, crosswind (Loyd), constant elevation beta_o.
         tether force  F_o = q S C_R,o (1 + E_o^2) (cos(beta_o) - f_o)^2
-    - Reel-in: steady flight straight towards the ground station at a constant lift-to-drag
-      ratio E_i; the elevation follows from the force balance (not prescribed).
+    - Reel-in: steady flight straight towards the ground station at constant L/D E_i; the
+      elevation follows from the force balance (not prescribed).
         tether force  F_i = q S C_R,i (sqrt(1 + E_i^2 (1 - f_i^2)) - f_i)^2 / (1 + E_i^2)
-    - No transition phase and no acceleration time: cycle power is
+    - No transition phase, no acceleration time:
         P_c = (F_o v_o t_o - |F_i v_i| t_i) / (t_o + t_i),   t = stroke / |v|
     - Regime 1: f_o and f_i optimised freely (within reeling-speed limits).
-      Regime 2: tether force at its limit -> f_o follows from F_o = F_max, f_i optimised.
-      Regime 3: generator power at its limit -> reel-out speed fixed, kite depowered
-                (force factor lowered) to keep F_o = F_max, f_i optimised.
+      Regime 2: tether force limit -> f_o from F_o = F_max; f_i optimised.
+      Regime 3: generator power limit -> reel-out speed fixed, kite depowered (force factor
+                lowered) to keep F_o = F_max; f_i optimised.
 
-    The original uses scipy (COBYLA) to optimise; here a dense grid search is used instead,
-    which finds the same optimum to within the grid spacing (checked: < 0.5% in power).
+The original optimises with scipy (COBYLA); here a dense grid search finds the same optimum
+to within the grid spacing (checked: < 0.5% in power).
 """
 
 import numpy as np

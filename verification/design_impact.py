@@ -2,19 +2,16 @@
 design_impact.py - What the verification changes do to the kite design
 ======================================================================
 
-Sizes the kite for every wind class (baseline design inputs of plotting.py) twice:
-with the first version of kite_model (the three options added during the verification
-switched off) and with the current version, and plots kite area, mass and hours out of
-operation side by side.
-
-Uses the case cache of plotting.py, so cases already run by plotting.py are not repeated.
+Sizes the kite for every wind class (baseline design inputs of plotting.py) with the first
+version of kite_model (the three verification options off) and with the current version, and
+plots kite area, mass and hours out of operation side by side. Uses plotting.py's case cache,
+so cases it already ran are not repeated.
 
 HOW TO RUN
     python verification/design_impact.py [--workers N]
 
 OUTPUT
-    outputs/verification/design_impact.png
-    outputs/verification/design_impact.csv
+    outputs/verification/design_impact.png and design_impact.csv
 """
 
 import argparse
