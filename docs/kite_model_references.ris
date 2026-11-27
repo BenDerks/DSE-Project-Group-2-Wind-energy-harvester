@@ -1,0 +1,202 @@
+TY  - CHAP
+AU  - Bosman, Rigo
+AU  - Reid, Valerie
+AU  - Vlasblom, Martin
+AU  - Smeets, Paul
+TI  - Airborne Wind Energy Tethers with High-Modulus Polyethylene Fibers
+T2  - Airborne Wind Energy
+A2  - Ahrens, Uwe
+A2  - Diehl, Moritz
+A2  - Schmehl, Roland
+PB  - Springer
+CY  - Berlin, Heidelberg
+PY  - 2013
+SP  - 563
+EP  - 585
+DO  - 10.1007/978-3-642-39965-7_33
+ER  -
+
+TY  - JOUR
+AU  - Cayon, Oriol
+AU  - van Deursen, Vince D.
+AU  - Schmehl, Roland
+TI  - Translational dynamics of bridled kites: a reduced-order model in the course reference frame
+JO  - Wind Energy Science
+VL  - 11
+IS  - 3
+SP  - 1097
+EP  - 1121
+PY  - 2026
+DO  - 10.5194/wes-11-1097-2026
+ER  -
+
+TY  - JOUR
+AU  - Joshi, Rishikesh
+AU  - Schmehl, Roland
+AU  - Kruijff, Michiel
+TI  - Power curve modelling and scaling of fixed-wing ground-generation airborne wind energy systems
+JO  - Wind Energy Science
+VL  - 9
+SP  - 2195
+EP  - 2215
+PY  - 2024
+DO  - 10.5194/wes-9-2195-2024
+ER  -
+
+TY  - CHAP
+AU  - Luchsinger, Rolf H.
+TI  - Pumping Cycle Kite Power
+T2  - Airborne Wind Energy
+A2  - Ahrens, Uwe
+A2  - Diehl, Moritz
+A2  - Schmehl, Roland
+PB  - Springer
+CY  - Berlin, Heidelberg
+PY  - 2013
+SP  - 47
+EP  - 64
+DO  - 10.1007/978-3-642-39965-7_3
+ER  -
+
+TY  - THES
+AU  - Noom, Michael N.
+TI  - Theoretical Analysis of Mechanical Power Generation by Pumping Cycle Kite Power Systems
+PB  - Delft University of Technology
+PY  - 2013
+M3  - MSc thesis
+UR  - https://repository.tudelft.nl/file/File_55765288-4617-4a2a-945b-b929bfd9680b?preview=1
+ER  -
+
+TY  - JOUR
+AU  - Oehler, Johannes
+AU  - Schmehl, Roland
+TI  - Aerodynamic characterization of a soft kite by in situ flow measurement
+JO  - Wind Energy Science
+VL  - 4
+IS  - 1
+SP  - 1
+EP  - 21
+PY  - 2019
+DO  - 10.5194/wes-4-1-2019
+ER  -
+
+TY  - JOUR
+AU  - Schelbergen, Mark
+AU  - Kalverla, Peter C.
+AU  - Schmehl, Roland
+AU  - Watson, Simon J.
+TI  - Clustering wind profile shapes to estimate airborne wind energy production
+JO  - Wind Energy Science
+VL  - 5
+SP  - 1097
+EP  - 1120
+PY  - 2020
+DO  - 10.5194/wes-5-1097-2020
+ER  -
+
+TY  - CONF
+AU  - Schelbergen, Mark
+AU  - Schmehl, Roland
+TI  - Validation of the quasi-steady performance model for pumping airborne wind energy systems
+T2  - Journal of Physics: Conference Series
+VL  - 1618
+SP  - 032003
+PY  - 2020
+DO  - 10.1088/1742-6596/1618/3/032003
+ER  -
+
+TY  - CHAP
+AU  - Schmehl, Roland
+AU  - Noom, Michael
+AU  - van der Vlugt, Rolf
+TI  - Traction Power Generation with Tethered Wings
+T2  - Airborne Wind Energy
+A2  - Ahrens, Uwe
+A2  - Diehl, Moritz
+A2  - Schmehl, Roland
+PB  - Springer
+CY  - Berlin, Heidelberg
+PY  - 2013
+ER  -
+
+TY  - THES
+AU  - Talmar, Mihkel
+TI  - Quasi-Steady Model Enhancements of Airborne Wind Energy Systems
+PB  - Delft University of Technology
+PY  - 2021
+M3  - MSc thesis
+UR  - https://repository.tudelft.nl/file/File_d8d5a201-da73-4fd8-ae39-893e1caf4b46
+ER  -
+
+TY  - ELEC
+AU  - Delft University of Technology
+TI  - Airborne Wind Energy course, lecture slides
+UR  - https://awecourse.github.io/slides/awe03.html
+ER  -
+
+TY  - JOUR
+AU  - van der Vlugt, Rolf
+AU  - Bley, Anna
+AU  - Noom, Michael
+AU  - Schmehl, Roland
+TI  - Quasi-steady model of a pumping kite power system
+JO  - Renewable Energy
+VL  - 131
+SP  - 83
+EP  - 99
+PY  - 2019
+DO  - 10.1016/j.renene.2018.07.023
+ER  -
+
+TY  - BOOK
+AU  - Manwell, James F.
+AU  - McGowan, Jon G.
+AU  - Rogers, Anthony L.
+TI  - Wind Energy Explained: Theory, Design and Application
+ET  - 2nd
+PB  - Wiley
+CY  - Chichester
+PY  - 2009
+DO  - 10.1002/9781119994367
+N1  - Chapter 2: wind speed variation with height (power law); used to extrapolate the wind above 400 m
+ER  -
+
+TY  - JOUR
+AU  - Loyd, Miles L.
+TI  - Crosswind kite power
+JO  - Journal of Energy
+VL  - 4
+IS  - 3
+SP  - 106
+EP  - 111
+PY  - 1980
+DO  - 10.2514/3.48021
+ER  -
+
+TY  - COMP
+AU  - Schmehl, Roland
+TI  - awe_on_mars: power curve computed following the three-regimes strategy (powercurve.py)
+PB  - GitHub, awegroup
+PY  - 2023
+UR  - https://github.com/awegroup/awe_on_mars
+N1  - MIT licence; independent reference code used for verification
+ER  -
+
+TY  - GEN
+AU  - Kitepower B.V.
+TI  - New powerful ways - The Kitepower Falcon 100 kW (product brochure)
+PB  - Kitepower B.V.
+CY  - Delft
+UR  - https://thekitepower.com/resources/product/New%20Powerful%20Ways%20-%20The%20Kitepower%20Falcon%20100kW.pdf
+Y2  - 2026/11/26
+ER  -
+
+TY  - GEN
+AU  - SkySails Power GmbH
+TI  - Data sheet Venyo (PN-14), REV.2
+PB  - SkySails Power GmbH
+CY  - Hamburg
+PY  - 2025
+UR  - https://skysails-power.com/wp-content/uploads/2025/05/SkySails-Power-Data-sheet-Venyo-PN-14.pdf
+Y2  - 2026/11/26
+ER  -

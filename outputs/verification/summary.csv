@@ -1,0 +1,56 @@
+reference,quantity,unit,reference_value,model_value,difference_pct,note
+Three-regime code (Luchsinger 2013),"max. deviation of massless reel-out force, 36 states",-,1.0,1.0,0.0,identical force law: deviation is rounding only
+Three-regime code (Luchsinger 2013),"max. deviation of massless reel-in force at the steady reel-in elevation, 27 states",-,1.0,1.0,0.0,identical force law: deviation is rounding only
+Loyd (1980) ideal crosswind power,max. ratio model / Loyd over all wind speeds,-,1.0,0.436,-56.4,must stay below 1
+Three-regime code (Luchsinger 2013),"cycle power at 8 m/s, matched massless",kW,7.312,4.969,-32.0,"reference: kite already at its steady reel-in elevation, no transition; kite_model: kite climbs from 25 deg during reel-in, then flies back down"
+Three-regime code (Luchsinger 2013),"cycle power at 8 m/s, full model",kW,7.312,4.611,-36.9,includes mass and the 13 deg azimuth
+Three-regime code (Luchsinger 2013),"cycle power at 12 m/s, matched massless",kW,13.101,7.86,-40.0,"reference: kite already at its steady reel-in elevation, no transition; kite_model: kite climbs from 25 deg during reel-in, then flies back down"
+Three-regime code (Luchsinger 2013),"cycle power at 12 m/s, full model",kW,13.101,8.492,-35.2,includes mass and the 13 deg azimuth
+"van der Vlugt 2019, moderate wind, measured",P_c (kite_model as used),kW,2.79,3.236,16.0,
+"van der Vlugt 2019, moderate wind, measured",P_c (first version),kW,2.79,3.129,12.1,
+"van der Vlugt 2019, moderate wind, measured",P_o (kite_model as used),kW,6.23,7.347,17.9,
+"van der Vlugt 2019, moderate wind, measured",P_o (first version),kW,6.23,7.347,17.9,
+"van der Vlugt 2019, moderate wind, measured",P_i (kite_model as used),kW,-2.6,-2.837,9.1,
+"van der Vlugt 2019, moderate wind, measured",P_i (first version),kW,-2.6,-2.837,9.1,
+"van der Vlugt 2019, moderate wind, measured",t_c (kite_model as used),s,122.0,108.21,-11.3,
+"van der Vlugt 2019, moderate wind, measured",t_c (first version),s,122.0,111.926,-8.3,
+"van der Vlugt 2019, moderate wind, measured","P_c (kite_model.state, paper set-up)",kW,2.79,3.159,13.2,
+"van der Vlugt 2019, moderate wind, published model",P_c (kite_model as used),kW,3.55,3.236,-8.8,
+"van der Vlugt 2019, moderate wind, published model",P_c (first version),kW,3.55,3.129,-11.9,
+"van der Vlugt 2019, moderate wind, published model",P_o (kite_model as used),kW,7.67,7.347,-4.2,
+"van der Vlugt 2019, moderate wind, published model",P_o (first version),kW,7.67,7.347,-4.2,
+"van der Vlugt 2019, moderate wind, published model",P_i (kite_model as used),kW,-2.73,-2.837,3.9,
+"van der Vlugt 2019, moderate wind, published model",P_i (first version),kW,-2.73,-2.837,3.9,
+"van der Vlugt 2019, moderate wind, published model",t_c (kite_model as used),s,101.0,108.21,7.1,
+"van der Vlugt 2019, moderate wind, published model",t_c (first version),s,101.0,111.926,10.8,
+"van der Vlugt 2019, moderate wind, published model","P_c (kite_model.state, paper set-up)",kW,3.55,3.159,-11.0,
+"van der Vlugt 2019, strong wind, measured",P_c (kite_model as used),kW,6.48,6.796,4.9,
+"van der Vlugt 2019, strong wind, measured",P_c (first version),kW,6.48,6.587,1.7,
+"van der Vlugt 2019, strong wind, measured",P_o (kite_model as used),kW,19.12,20.718,8.4,
+"van der Vlugt 2019, strong wind, measured",P_o (first version),kW,19.12,20.718,8.4,
+"van der Vlugt 2019, strong wind, measured",P_i (kite_model as used),kW,-3.64,-4.12,13.2,
+"van der Vlugt 2019, strong wind, measured",P_i (first version),kW,-3.64,-4.12,13.2,
+"van der Vlugt 2019, strong wind, measured",t_c (kite_model as used),s,128.0,109.693,-14.3,
+"van der Vlugt 2019, strong wind, measured",t_c (first version),s,128.0,113.169,-11.6,
+"van der Vlugt 2019, strong wind, measured","P_c (kite_model.state, paper set-up)",kW,6.48,6.434,-0.7,
+"van der Vlugt 2019, strong wind, published model",P_c (kite_model as used),kW,7.59,6.796,-10.5,
+"van der Vlugt 2019, strong wind, published model",P_c (first version),kW,7.59,6.587,-13.2,
+"van der Vlugt 2019, strong wind, published model",P_o (kite_model as used),kW,22.57,20.718,-8.2,
+"van der Vlugt 2019, strong wind, published model",P_o (first version),kW,22.57,20.718,-8.2,
+"van der Vlugt 2019, strong wind, published model",P_i (kite_model as used),kW,-4.03,-4.12,2.2,
+"van der Vlugt 2019, strong wind, published model",P_i (first version),kW,-4.03,-4.12,2.2,
+"van der Vlugt 2019, strong wind, published model",t_c (kite_model as used),s,106.0,109.693,3.5,
+"van der Vlugt 2019, strong wind, published model",t_c (first version),s,106.0,113.169,6.8,
+"van der Vlugt 2019, strong wind, published model","P_c (kite_model.state, paper set-up)",kW,7.59,6.434,-15.2,
+Kitepower Falcon (product),"mean power, Rayleigh 5 m/s, wind at flying height",kW,19.417,5.265,-72.9,reference height of the published curve unknown
+Kitepower Falcon (product),"mean power, Rayleigh 5 m/s, if wind at 6 m",kW,19.417,20.344,4.8,log profile z0 = 0.07 m (van der Vlugt 2019)
+Kitepower Falcon (product),"mean power, Rayleigh 7 m/s, wind at flying height",kW,44.287,14.381,-67.5,reference height of the published curve unknown
+Kitepower Falcon (product),"mean power, Rayleigh 7 m/s, if wind at 6 m",kW,44.287,31.04,-29.9,log profile z0 = 0.07 m (van der Vlugt 2019)
+Kitepower Falcon (product),"mean power, Rayleigh 9 m/s, wind at flying height",kW,64.146,22.871,-64.3,reference height of the published curve unknown
+Kitepower Falcon (product),"mean power, Rayleigh 9 m/s, if wind at 6 m",kW,64.146,36.811,-42.6,log profile z0 = 0.07 m (van der Vlugt 2019)
+Kitepower Falcon (product),kite L/D at which the model matches the mean power at 7 m/s,kW,44.287,44.287,0.0,wind at flying height: L/D = nan; wind at 6 m: L/D = nan (nan = not reached for L/D up to 7; kite_model.P: 4.0)
+Kitepower Falcon (product),max. electrical cycle power,kW,123.5,52.927,-57.1,generator limit 130 kW electrical during reel-out
+SkySails PN-14 (product),"AEP at 9 m/s mean (Rayleigh, wind at 200 m)",MWh/yr,760.0,412.536,-45.7,same wind definition as the model
+SkySails PN-14 (product),kite L/D at which the model gives 760 MWh,MWh/yr,760.0,760.0,0.0,L/D = 6.08 (kite_model.P: 4.0)
+SkySails PN-14 (product),"AEP at 9 m/s, first version",MWh/yr,760.0,376.792,-50.4,
+SkySails PN-14 (product),cycle power at rated wind 13 m/s,kW,200.0,87.305,-56.3,"data sheet: ""up to"" 200 kW"

@@ -47,13 +47,26 @@ OUTPUT_DIR = Path(__file__).parent / 'outputs'
 # Heights at which the data gives Weibull parameters [m above ground level]
 HEIGHTS = [40, 100, 200, 300, 400]
 
+# Heights ABOVE the data that are filled in by extrapolation, so the kite can be sized for
+# flying heights up to 500 m (average altitude up to 450 m). Per point, the Weibull scale A
+# is extended with the power law A(z) = A400 * (z / 400)**alpha, with alpha the point's own
+# shear exponent between 300 and 400 m; the shape k is kept at its 400 m value.
+# Source power law: Manwell, McGowan & Rogers (2009), Wind Energy Explained, 2nd ed., Wiley,
+# ch. 2 (wind speed variation with height). Assumption: the 300-400 m shear continues up to
+# 500 m (median alpha in the data is 0.21; 99% lie between 0.05 and 0.29). Treat results
+# above 400 m as an estimate.
+EXTRA_HEIGHTS = [500]
+DIST_HEIGHTS = HEIGHTS + EXTRA_HEIGHTS      # rows of the class distribution tables
+
 # Wind classes: points are classified by their annual MEAN wind speed at CLASS_HEIGHT.
 # 100 m is used as a common reference for both concepts (turbine hub at 40 m, kite at
 # 100-400 m). Edges in m/s; the first class has no lower and the last no upper limit.
-# 10 classes of 0.5 m/s; 7.5 m/s (lower bound of IEC wind class III, the threshold used in
-# the market analysis) is the lower edge of the top class.
+# 10 classes of 0.5 m/s, placed over the range of the data: the current data set (8,486
+# points, only cells with at least 25% windy land) runs from 4.4 to 13.2 m/s at 100 m with a
+# median of 6.5 m/s. 7.5 m/s (lower bound of IEC wind class III, the threshold used in the
+# market analysis) is a class edge. Classes without points are skipped by the kite runs.
 CLASS_HEIGHT = 100
-CLASS_EDGES = [0.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, np.inf]
+CLASS_EDGES = [0.0, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, np.inf]
 
 
 def _class_names(edges):
@@ -80,8 +93,9 @@ BIN_CENTRES = np.arange(0.5, 35.0, BIN_WIDTH)
 # Check: the largest GWA area in the data (772.8 km2) equals this value.
 CELL_AREA_EQUATOR_KM2 = 772.8
 
-# Column with the site (ground) elevation above sea level [m], once it is added to the data.
-# Needed for the air density at the kite's altitude. Not in the data yet.
+# Column with the site (ground) elevation above sea level [m]. Needed for the air density at
+# the kite's altitude (kite_model.geometry, z_site). If the column is missing, sea level is
+# assumed and a warning is printed. Change the name here if the data uses another one.
 ELEVATION_COLUMN = 'elevation_m'
 
 
@@ -150,6 +164,7 @@ def class_summary(df):
         n_points          : number of grid points in the class
         share_points_pct  : [%] share of all points
         share_pop_pct     : [%] share of all people living in the points
+        share_area_pct    : [%] share of the total cell area (cells shrink with latitude)
         share_windy_area_pct : [%] share of the windy land area (GWA area above threshold)
         mean_speed_<h>m   : [m/s] average of the points' mean wind speed at each height
         weibull_k_<h>m    : [-]   average Weibull shape factor at each height
@@ -164,6 +179,7 @@ def class_summary(df):
         row = dict(wind_class=c, name=name, n_points=len(g),
                    share_points_pct=100 * len(g) / len(df),
                    share_pop_pct=100 * g['population'].sum() / total_pop,
+                   share_area_pct=100 * g['cell_area_km2'].sum() / df['cell_area_km2'].sum(),
                    share_windy_area_pct=100 * g['gwa_area_ge_threshold_km2'].sum() / total_area)
         for h in HEIGHTS:
             row[f'mean_speed_{h}m'] = g[f'h{h}_mean_speed_m_s'].mean()
@@ -212,20 +228,70 @@ def class_distributions(df, weight='points'):
                  'population' points count by the number of people in the cell
 
     Output (dict)
-        {class_id: array (len(HEIGHTS), len(BIN_CENTRES))} with the bin probabilities;
-        each row sums to ~1
+        {class_id: array (len(DIST_HEIGHTS), len(BIN_CENTRES))} with the bin probabilities;
+        each row sums to ~1. Rows for EXTRA_HEIGHTS are extrapolated (see SETTINGS).
     """
     dist = {}
     for c in sorted(df['wind_class'].dropna().unique()):
         g = df[df['wind_class'] == c]
         w = np.ones(len(g)) if weight == 'points' else g['population'].to_numpy()
         w = w / w.sum()
-        table = np.zeros((len(HEIGHTS), len(BIN_CENTRES)))
+        table = np.zeros((len(DIST_HEIGHTS), len(BIN_CENTRES)))
         for i, h in enumerate(HEIGHTS):
             p = weibull_bin_probabilities(g[f'h{h}_weibull_A_m_s'], g[f'h{h}_weibull_k'])
             table[i] = w @ p                     # weighted average over the points
+        for i, h in enumerate(EXTRA_HEIGHTS, start=len(HEIGHTS)):
+            A, k = _extrapolate_weibull(g, h)
+            table[i] = w @ weibull_bin_probabilities(A, k)
         dist[int(c)] = table
     return dist
+
+
+def _extrapolate_weibull(g, z):
+    """
+    Weibull A and k of every point at a height z above the highest data height.
+
+    Why: the data stops at 400 m, but flying heights up to 500 m are studied. See the
+    EXTRA_HEIGHTS comment in SETTINGS for the method and its source.
+
+    Inputs: g = DataFrame of points (needs h300/h400 Weibull columns), z [m] > 400
+    Output: (A [m/s], k [-]) arrays, one value per point
+    """
+    A300, A400 = g['h300_weibull_A_m_s'].to_numpy(), g['h400_weibull_A_m_s'].to_numpy()
+    alpha = np.log(A400 / A300) / np.log(400 / 300)          # point's own shear exponent
+    return A400 * (z / 400) ** alpha, g['h400_weibull_k'].to_numpy()
+
+
+def class_elevations(df, weight='points'):
+    """
+    Average ground elevation above sea level of every wind class.
+
+    Why: the kite model needs one site elevation per class for the air density (M3). The
+    average uses the same weighting as class_distributions(), so wind and density describe
+    the same points. Using the class average (not every point) is a simplification: density
+    falls ~1% per 100 m, so a spread of a few hundred metres within a class changes the
+    power by a few percent.
+
+    Inputs
+        df     : DataFrame with 'wind_class'
+        weight : 'points' or 'population' (as in class_distributions)
+
+    Output (dict)
+        {class_id: mean elevation [m]}; all 0.0 if ELEVATION_COLUMN is not in the data
+    """
+    classes = sorted(int(c) for c in df['wind_class'].dropna().unique())
+    if ELEVATION_COLUMN not in df.columns:
+        print(f'WARNING: no column {ELEVATION_COLUMN!r} in the data; sea level assumed for '
+              f'the air density')
+        return {c: 0.0 for c in classes}
+    out = {}
+    for c in classes:
+        g = df[df['wind_class'] == c]
+        w = np.ones(len(g)) if weight == 'points' else g['population'].to_numpy()
+        z = g[ELEVATION_COLUMN].to_numpy(dtype=float)
+        ok = np.isfinite(z)
+        out[c] = float(np.average(z[ok], weights=w[ok])) if ok.any() else 0.0
+    return out
 
 
 def wind_bins(dist, class_id, z):
@@ -239,15 +305,16 @@ def wind_bins(dist, class_id, z):
     Inputs
         dist     : output of class_distributions()
         class_id : wind class number
-        z        : [m] altitude; must lie between the lowest and highest data height
+        z        : [m] altitude; between the lowest data height and the highest
+                   (extrapolated) height in DIST_HEIGHTS. Above 400 m it is an estimate.
 
     Output
         vs : [m/s] bin centres;  pj : [-] probability per bin (sums to 1)
     """
-    if not HEIGHTS[0] <= z <= HEIGHTS[-1]:
-        raise ValueError(f'z = {z} m is outside the data heights {HEIGHTS[0]}-{HEIGHTS[-1]} m')
+    if not DIST_HEIGHTS[0] <= z <= DIST_HEIGHTS[-1]:
+        raise ValueError(f'z = {z} m is outside {DIST_HEIGHTS[0]}-{DIST_HEIGHTS[-1]} m')
     table = dist[class_id]
-    pj = np.array([np.interp(z, HEIGHTS, table[:, j]) for j in range(len(BIN_CENTRES))])
+    pj = np.array([np.interp(z, DIST_HEIGHTS, table[:, j]) for j in range(len(BIN_CENTRES))])
     return BIN_CENTRES.copy(), pj / pj.sum()
 
 
@@ -255,7 +322,7 @@ def distributions_to_table(dist):
     """Long table (class, height, bin centre, probability) for saving to CSV."""
     rows = []
     for c, table in dist.items():
-        for i, h in enumerate(HEIGHTS):
+        for i, h in enumerate(DIST_HEIGHTS):
             for v, p in zip(BIN_CENTRES, table[i]):
                 rows.append(dict(wind_class=c, height_m=h, v_m_s=v, probability=p))
     return pd.DataFrame(rows)

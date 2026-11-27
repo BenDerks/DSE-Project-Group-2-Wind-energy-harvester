@@ -28,8 +28,10 @@ STRUCTURE (block letters A-H and equation numbers M1-M29 refer to the model doc)
     coeffs()             B   effective lift and drag coefficients incl. tether drag
     state()              C   steady flight state of the kite incl. gravity (used by C, D and E)
     retraction()         D   reel-in, stepped in time while the kite climbs
-    transition()         E   kite flies back down to the reel-out elevation
+    transition()         E   kite flies back down to the reel-out elevation (may reel out)
     operating_point()    F   best way to fly at one wind speed -> one point of the power curve
+    _depowered()         F   reel-out state of a partly depowered kite at a force limit
+    _with_transition_energy()  F  cycle power with the energy of the transition
     weibull_bins()           placeholder wind input
     mean_power()         G   mean power over the wind class for one kite size
     size_kite()          loop + H  finds the kite area for the target power, computes metrics
@@ -44,11 +46,33 @@ ANGLE CONVENTIONS (van der Vlugt et al. 2019)
     phi   azimuth angle, sideways from straight downwind
     chi   course angle (flight direction seen from the ground station): 0 = down, 90 = sideways, 180 = up
 
+CHANGES AFTER THE VERIFICATION (November 2026, see verification/ and the overview doc)
+    1. Transition energy: during the transition the tether is reeled out at the reel-out
+       force when the kite pulls harder than that (van der Vlugt 2019, Sect. 2.9). Before,
+       the transition only cost time. Effect: +2-4% cycle power; reproduces the measured
+       transition power of van der Vlugt 2019 (3.5 vs 3.4 kW measured).
+    2. Depower during reel-out at the force or generator limit (Luchsinger 2013, regimes
+       II-III; reference code of Schmehl, awe_on_mars). Before, the model could only reel
+       out faster at lower force, so with a generator limit the cycle power collapsed above
+       rated wind.
+    3. Elevation optimised in strong wind: raised while it increases the cycle power
+       (Schelbergen 2020, Table 5: 25-60 deg). Before, it was only raised when no state
+       was allowed at all.
+    4. Optional generator limit P_gen_max (default None = no limit, as before).
+    5. Site elevation z_site for the air density (geometry(), size_kite()).
+    6. Kite drag C_D,k,o 0.2 -> 0.225: L/D 4.0, the measured reel-out average of the TU Delft
+       V3 kite instead of 4.5 (see P).
+    Options 1-3 can be switched off in P (transition_energy, depower, optimise_elevation)
+    to get the first model version back.
+
 MAIN SOURCES
     van der Vlugt, Bley, Noom & Schmehl (2019), Renewable Energy 131, 83-99   (model framework)
     Schelbergen, Kalverla, Schmehl & Watson (2020), Wind Energy Science 5     (soft-kite parameters)
     Joshi, Schmehl & Kruijff (2024), Wind Energy Science 9                    (tether sizing, cycle time)
     Cayon, van Deursen & Schmehl (2026), Wind Energy Science 11              (kite mass per area)
+    Oehler & Schmehl (2019), Wind Energy Science 4, 1-21                     (measured kite L/D)
+    Luchsinger (2013), Pumping cycle kite power, in: Airborne Wind Energy, Springer
+                                                                          (force/power-limited control)
 """
 
 import numpy as np
@@ -73,7 +97,13 @@ P = dict(
 
     # Aerodynamics of the soft kite (kite only, tether drag is added in coeffs())
     CLo=0.9,         # [-]     lift coefficient, powered (reel-out)         Schelbergen 2020, Table 4
-    CDko=0.2,        # [-]     kite drag coefficient, powered               Schelbergen 2020, Table 4
+    CDko=0.225,      # [-]     kite drag coefficient, powered. Set so that C_L/C_D = 4.0, the
+                     #         AVERAGE lift-to-drag ratio measured in flight during reel-out for
+                     #         this kite, turns included (Oehler & Schmehl 2019, WES 4: "about 4";
+                     #         van der Vlugt et al. 2019: 3.6 and 4.0). Schelbergen 2020, Table 4
+                     #         uses 0.2 (L/D 4.5), between that average and the measured peak of
+                     #         about 5; the model uses one L/D for the whole reel-out, so the
+                     #         average is the right value. Range for studies: L/D 3.6-5.0.
     CLi=0.2,         # [-]     lift coefficient, depowered (reel-in)        Schelbergen 2020, Table 4
     CDki=0.1,        # [-]     kite drag coefficient, depowered             Schelbergen 2020, Table 4
 
@@ -95,6 +125,23 @@ P = dict(
     # Operational limits
     Fi_min=300.0,    # [N]     lowest reel-in force (keeps the kite tensioned)  Schelbergen 2020, Table 4
     beta_max=60.0,   # [deg]   highest elevation used to shed force in strong wind  Schelbergen 2020, Table 5
+
+    # Generator (optional). None = no limit: the reel-out power is then only limited by
+    # F_max * v_max. Set a value [W] to cap the mechanical reel-out power at the generator
+    # rating (regime III of Luchsinger 2013; used in the verification against products).
+    P_gen_max=None,
+
+    # Model options (switches, not physical values)
+    optimise_elevation=True,  # in strong wind (a limit active), raise the reel-out elevation
+                              # while that increases the cycle power (Schelbergen 2020, Table 5:
+                              # 25-60 deg). False = raise it only when no state is allowed.
+    depower=True,             # depower the kite during reel-out to stay at the force or
+                              # generator limit (Luchsinger 2013, regimes II-III), with the
+                              # reel-in coefficients as the most depowered state. False = only
+                              # raise the elevation to shed force (first model version).
+    transition_energy=True,   # reel out at the reel-out force during the transition when the
+                              # kite pulls harder than that (van der Vlugt 2019, Sect. 2.9).
+                              # False = transition only costs time (first model version).
 )
 
 # =====================================================================================
@@ -156,7 +203,7 @@ def solve(fun, a, b, xtol, maxiter=60):
 # =====================================================================================
 # BLOCK A - GEOMETRY, WIND ALTITUDE AND TETHER (once per run)
 # =====================================================================================
-def geometry(zmin, zmax, Fmax, p=P):
+def geometry(zmin, zmax, Fmax, p=P, z_site=0.0):
     """
     Everything that depends only on the design inputs, not on the kite size.
 
@@ -164,16 +211,20 @@ def geometry(zmin, zmax, Fmax, p=P):
     itself are the same for every trial kite area, so they are computed once per run.
 
     Inputs
-        zmin, zmax : [m]  lowest and highest kite altitude during reel-out (design inputs)
+        zmin, zmax : [m]  lowest and highest kite altitude during reel-out, ABOVE GROUND
+                          (design inputs; the wind data is also given above ground)
         Fmax       : [N]  maximum tether force (design input)
         p          : parameter dictionary (default P)
+        z_site     : [m]  ground elevation of the site above sea level (default 0 = sea level).
+                          Only used for the air density: the kite flies at z_site + zbar
+                          above sea level. At 1000 m elevation the density is ~11% lower.
 
     Output (dict)
         rmin, rmax : [m]      tether length at the start and end of reel-out            (M1)
         rbar       : [m]      average airborne tether length during reel-out            (M1)
         dl         : [m]      reel-out stroke rmax - rmin                               (M1)
         zbar       : [m]      average reel-out altitude, where the wind is read         (M2)
-        rho        : [kg/m3]  air density at zbar                                       (M3)
+        rho        : [kg/m3]  air density at z_site + zbar above sea level              (M3)
         dt         : [m]      tether diameter                                           (M5)
         mt         : [kg]     airborne tether mass at rbar (used in the force balance)  (M6)
         mt_tot     : [kg]     total tether mass at rmax (for the mass budget)           (M6)
@@ -196,7 +247,7 @@ def geometry(zmin, zmax, Fmax, p=P):
 
     return dict(
         rmin=rmin, rmax=rmax, rbar=rbar, dl=rmax - rmin, zbar=zbar,
-        rho=p['rho0'] * exp(-zbar / p['H']),                  # M3: barometric density
+        rho=p['rho0'] * exp(-(z_site + zbar) / p['H']),       # M3: barometric density
         dt=dt,
         mt=pi / 4 * dt**2 * p['rho_t'] * rbar,                # M6: airborne tether mass
         mt_tot=pi / 4 * dt**2 * p['rho_t'] * rmax,            # M6: total tether mass
@@ -432,21 +483,32 @@ def retraction(vw, S, m, geo, Fmax, theta0, Fi, p=P, dT=None, theta_min=radians(
 # =====================================================================================
 # BLOCK E - TRANSITION (flying back down)
 # =====================================================================================
-def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=None):
+def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=None, F_out=None):
     """
-    Time for the powered kite to fly back down from the end-of-reel-in angle to the
-    reel-out angle, at constant tether length rmin and without reeling (M22).
+    The powered kite flies back down from the end-of-reel-in angle to the reel-out angle
+    (M22), at constant tether length r_min unless the tether force would exceed the reel-out
+    force F_out: then the tether is reeled out at F_out, which produces energy
+    (van der Vlugt et al. 2019, Sect. 2.9: "the reeling velocity is increased to stay below
+    the value F_t,o").
 
-    Why: this phase produces nothing but takes time, so it lowers the cycle power.
+    Why: this phase takes time, which lowers the cycle power, but in the measured cycles of
+    van der Vlugt et al. (2019, Tables 2-3) it also PRODUCES power (3.4 kW and 8.5 kW), because
+    the powered kite diving into the wind window pulls harder than the reel-out set force.
+    Leaving that energy out (as the first version of this model did) underestimated the
+    cycle power.
 
     Inputs
         vw, S, m, geo : as in retraction()
         theta_from    : [rad] polar angle at the end of reel-in
         theta_to      : [rad] polar angle of reel-out
         n             : [-]   number of equal steps in theta (default NUM['n_transition'])
+        F_out         : [N]   reel-out force; None = never reel out (time only, no energy)
 
-    Output
-        t_x [s], or None if the kite cannot fly steadily somewhere on the way down
+    Output (dict), or None if the kite cannot fly steadily somewhere on the way down
+        t  : [s]  transition time t_x
+        E  : [J]  energy produced while reeling out at F_out (0 if never needed)
+        dl : [m]  tether paid out during the transition; this part of the reel-out stroke
+                  is then no longer available for the reel-out phase
     """
     n = NUM['n_transition'] if n is None else n
     r = geo['rmin']
@@ -454,15 +516,35 @@ def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=None):
     (CL_out, CD_out), _ = coeffs(S, geo['dt'], r, p)
 
     thetas = np.linspace(theta_from, theta_to, n + 1)
-    t = 0.0
+    t = E = dl = 0.0
     for th_a, th_b in zip(thetas[:-1], thetas[1:]):
-        # Powered kite, no reeling (f = 0), flying down (chi = 0) in the plane phi = 0
-        s = state(vw, 0.0, S, m, mt, CL_out, CD_out, 0.5 * (th_a + th_b), 0.0, 0.0, geo['rho'], p)
+        th = 0.5 * (th_a + th_b)
+        # Powered kite flying down (chi = 0) in the plane phi = 0, first without reeling
+        def flight(f):
+            return state(vw, f, S, m, mt, CL_out, CD_out, th, 0.0, 0.0, geo['rho'], p)
+        s, f = flight(0.0), 0.0
         if s is None:
             return None
-        # The kite moves along the sphere at lam * vw, so a step of dtheta takes r*dtheta/(lam*vw)
-        t += r * (th_b - th_a) / (s['lam'] * vw)
-    return t
+        if F_out is not None and s['Ftg'] > F_out:
+            # Too much force: reel out so that the force equals F_out (within the speed limit)
+            f_hi = min(p['vmax'] / vw, 0.999 * sin(th))
+            s_hi = flight(f_hi)
+            if s_hi is not None and s_hi['Ftg'] > F_out:
+                f, s = f_hi, s_hi                  # speed limit: force stays above F_out
+            else:
+                def err(x):
+                    sx = flight(x)
+                    return (sx['Ftg'] if sx else 0.0) - F_out
+                f = solve(err, 0.0, f_hi, xtol=1e-4)
+                s = flight(f)
+                if s is None:
+                    return None
+        # The kite moves along the sphere at lam * vw: a step of dtheta takes r*dtheta/(lam*vw)
+        step = r * (th_b - th_a) / (s['lam'] * vw)
+        t += step
+        E += s['Ftg'] * f * vw * step
+        dl += f * vw * step
+    return dict(t=t, E=E, dl=dl)
 
 
 # =====================================================================================
@@ -471,11 +553,25 @@ def transition(vw, S, m, geo, theta_from, theta_to, p=P, n=None):
 def operating_point(vw, S, geo, Fmax, p=P, n=None, detail=False):
     """
     Choose how to fly at one wind speed: reel-out factor, reel-in force and, in strong
-    wind, a higher elevation, so that the cycle power is highest within the limits (M24).
+    wind, depower and a higher elevation, so that the cycle power is highest within the
+    limits (M24).
 
     Why: at each wind speed the kite can be flown in many ways. A real control system
     aims for the most power within the force and speed limits; this function does the same.
     Its result is one point of the power curve.
+
+    How (per elevation, starting at beta_o):
+      1. reel-out states for NUM['n_fo'] reeling factors between v_min and v_max;
+      2. states that pull more than F_max (or than the generator limit P_gen_max / v_o)
+         are depowered to exactly that force if the kite's depower range allows it
+         (_depowered(), p['depower']); otherwise they are dropped;
+      3. every allowed reel-out is combined with each trial reel-in force (NUM['fi_ratios'])
+         and its reel-in (retraction) and transition time; the best cycle is kept;
+      4. the transition of the best cycle is recomputed with reel-out at its reel-out force,
+         which adds energy and shortens the reel-out (p['transition_energy']);
+      5. if a limit was active, the next elevation (+ NUM['beta_step']) is tried and kept
+         while it gives more cycle power (p['optimise_elevation']); if no state at all is
+         allowed, the elevation is raised up to beta_max, beyond that it is cut-out.
 
     Inputs
         vw     : [m/s] wind speed at the average altitude
@@ -492,17 +588,24 @@ def operating_point(vw, S, geo, Fmax, p=P, n=None, detail=False):
             Pc [W] cycle power, Po [W] reel-out power, Pi [W] average reel-in power,
             to, ti, tx [s] phase times, Fo [N] reel-out ground force, Fi [N] reel-in force,
             vo [m/s] reel-out speed, fo [-] reel-out factor,
+            Ei [J] reel-in energy, Ex [J] energy produced in the transition,
+            dlx [m] tether paid out in the transition,
             beta, beta_end [deg] reel-out elevation and elevation at the end of reel-in
+            depowered [-] (only if the reel-out kite is depowered) force-factor scale k
         None       : below cut-in (no steady flight at 25 deg, or no positive cycle power)
-        'cutout'   : above cut-out (force limit cannot be met even at 60 deg)
+        'cutout'   : above cut-out (force limit cannot be met even at 60 deg, depowered)
         With detail=True: (best, list_of_all_candidates)
     """
     n = NUM['n_fo'] if n is None else n
     m = p['w'] * S                                           # M7: airborne mass
     (CL_out, CD_out), _ = coeffs(S, geo['dt'], geo['rbar'], p)
+    P_gen = p.get('P_gen_max')
 
-    # Normal flight is at beta_o; only if the force limit cannot be met is the elevation
-    # raised (in steps of NUM['beta_step']) to shed force (Schelbergen 2020)
+    # Normal flight is at beta_o. If the force (or generator) limit is exceeded, the kite is
+    # depowered during reel-out (see below), and the elevation is raised (in steps of
+    # NUM['beta_step']) as long as that gives more cycle power or is needed to shed force
+    # (Schelbergen 2020)
+    overall = None
     for beta in np.arange(p['beta_o'], p['beta_max'] + 0.01, NUM['beta_step']):
         theta = radians(90 - beta)
         b = sin(theta) * cos(radians(p['phi_o']))
@@ -517,9 +620,30 @@ def operating_point(vw, S, geo, Fmax, p=P, n=None, detail=False):
         if beta == p['beta_o'] and all(s is None for s in reel_out):
             return None
 
-        # Keep only reel-out states that respect the force limit
-        allowed = [(f, s) for f, s in zip(f_trials, reel_out)
-                   if s is not None and s['Ftg'] <= Fmax]
+        # Keep only reel-out states that respect the force limit and, if one is set, the
+        # generator power limit (regime III of Luchsinger 2013; Joshi et al. 2024).
+        # Depower (M24b): a state that pulls harder than the limit is still allowed if the
+        # kite can be depowered enough at that reeling speed to pull exactly the limit (see
+        # _depowered()). This is the force- and power-limited control of Luchsinger (2013) and
+        # of the reference code of Schmehl (awe_on_mars), and how soft kites are flown (the
+        # control unit depowers the wing). Without it, the only way to respect a generator
+        # limit was to reel out faster at LOWER force, which made the cycle power drop above
+        # rated wind.
+        allowed = []
+        for f, s in zip(f_trials, reel_out):
+            if s is None:
+                continue
+            F_lim = Fmax if P_gen is None else min(Fmax, P_gen / (f * vw))
+            if s['Ftg'] <= F_lim:
+                allowed.append((f, s))
+            elif p.get('depower', True):
+                s_dep = _depowered(vw, f, S, m, geo, theta, F_lim, s['Ftg'], p)
+                if s_dep is not None:
+                    allowed.append((f, s_dep))
+        # Is a limit active at this elevation (some reel-out states had to be depowered or
+        # were excluded)? Only then can a higher elevation be better.
+        limited = (len(allowed) < sum(x is not None for x in reel_out)
+                   or any(st.get('depowered') for _, st in allowed))
         if not allowed:
             continue                                         # too much force: raise elevation
 
@@ -530,27 +654,96 @@ def operating_point(vw, S, geo, Fmax, p=P, n=None, detail=False):
             reel_in = retraction(vw, S, m, geo, Fmax, theta, Fi, p)
             if reel_in is None:
                 continue
-            t_x = transition(vw, S, m, geo, reel_in['theta_end'], theta, p)
-            if t_x is None:
+            tx = transition(vw, S, m, geo, reel_in['theta_end'], theta, p)
+            if tx is None:
                 continue
+            t_x = tx['t']
             for f, s in allowed:
                 vo = f * vw
                 t_o = geo['dl'] / vo + vo / p['amax']                    # M22: reel-out time
                 E_o = s['P'] * geo['dl'] / vo                            # reel-out energy
                 Pc = (E_o - reel_in['E']) / (t_o + reel_in['t'] + t_x)   # M23: cycle power
                 candidates.append(dict(Pc=Pc, Po=s['P'], Pi=reel_in['P'],
-                                       to=t_o, ti=reel_in['t'], tx=t_x,
+                                       to=t_o, ti=reel_in['t'], tx=t_x, Ex=0.0, dlx=0.0,
+                                       Ei=reel_in['E'],
                                        Fo=s['Ftg'], Fi=Fi, vo=vo, fo=f, beta=beta,
                                        beta_end=90 - degrees(reel_in['theta_end'])))
         if not candidates:
             continue
 
         best = max(candidates, key=lambda c: c['Pc'])
-        if best['Pc'] <= 0:
-            return None                                      # reel-in costs more than reel-out gives
-        return (best, candidates) if detail else best
 
-    return 'cutout'                                          # even 60 deg cannot shed enough force
+        # Transition with reel-out at the chosen reel-out force (van der Vlugt 2019, Sect. 2.9).
+        # Done for the best candidate only (the ranking above uses the transition time, which
+        # hardly changes); the tether paid out during the transition shortens the reel-out.
+        if p.get('transition_energy', True):
+            best = _with_transition_energy(best, vw, S, m, geo, theta, p)
+
+        if best['Pc'] <= 0 and overall is None:
+            return None                                      # reel-in costs more than reel-out gives
+
+        # Keep the best elevation. In strong wind (a limit is active) a higher elevation can
+        # give more cycle power, because reel-in then starts higher and costs less: keep
+        # raising the elevation while that improves the cycle power (Schelbergen et al. 2020
+        # optimise the reel-out elevation between 25 and 60 deg, Table 5).
+        if overall is None or best['Pc'] > overall[0]['Pc']:
+            overall = (best, candidates)
+            if limited and p.get('optimise_elevation', True):
+                continue
+        break
+
+    if overall is None:
+        return 'cutout'                                      # even 60 deg cannot shed enough force
+    if overall[0]['Pc'] <= 0:
+        return None
+    return overall if detail else overall[0]
+
+
+def _depowered(vw, f, S, m, geo, theta, F_lim, F_powered, p=P, tol=0.01):
+    """
+    Reel-out state of a partly depowered kite that pulls exactly F_lim at reeling factor f.
+
+    How depowering is modelled: the kite's lift and drag coefficients are scaled by the same
+    factor k (constant kite L/D; the tether drag is not scaled). This is how the reference
+    code of Schmehl (awe_on_mars, regime 3) and Luchsinger (2013) depower: they lower the
+    force factor at constant lift-to-drag ratio. k is limited to the depower range of the
+    kite, from 1 (powered) down to CL_i / CL_o (the reel-in lift coefficient,
+    Schelbergen et al. 2020, Table 4).
+
+    Inputs: as state(); F_lim [N] force to hold; F_powered [N] force of the powered kite.
+    Output: state dict with Ftg = F_lim and P = F_lim * f * vw, or None if the kite cannot
+            be depowered that far at this reeling speed (no steady flight, or out of range).
+    """
+    k_min = p['CLi'] / p['CLo']
+    k = F_lim / F_powered                        # first guess: force proportional to k
+    for _ in range(6):
+        k = min(max(k, k_min), 1.0)
+        (CL, CD), _ = coeffs(S, geo['dt'], geo['rbar'], dict(p, CLo=k * p['CLo'], CDko=k * p['CDko']))
+        s = state(vw, f, S, m, geo['mt'], CL, CD, theta, radians(p['phi_o']), radians(p['chi_o']),
+                  geo['rho'], p)
+        if s is None:
+            return None
+        if abs(s['Ftg'] / F_lim - 1) < tol:
+            return dict(s, Ftg=F_lim, P=F_lim * f * vw, depowered=k)
+        if k == k_min and s['Ftg'] > F_lim:
+            return None                          # fully depowered and still too much force
+        k *= F_lim / s['Ftg']                    # fixed-point update (force ~ k)
+    return None
+
+
+def _with_transition_energy(c, vw, S, m, geo, theta, p):
+    """
+    Recompute the cycle power of operating point c with a transition that reels out at the
+    reel-out force c['Fo'] (see transition()). Returns an updated copy of c.
+    """
+    tx = transition(vw, S, m, geo, radians(90 - c['beta_end']), theta, p, F_out=c['Fo'])
+    if tx is None:
+        return c
+    dl_o = max(geo['dl'] - tx['dl'], 0.0)                   # what is left for reel-out
+    t_o = dl_o / c['vo'] + c['vo'] / p['amax']               # M22
+    E_o = c['Po'] * dl_o / c['vo']
+    Pc = (E_o + tx['E'] - c['Ei']) / (t_o + c['ti'] + tx['t'])   # M23 with transition energy
+    return dict(c, Pc=Pc, to=t_o, tx=tx['t'], Ex=tx['E'], dlx=tx['dl'])
 
 
 # =====================================================================================
@@ -610,7 +803,7 @@ def mean_power(S, geo, Fmax, vs, pj, p=P, p_skip=0.0):
 # =====================================================================================
 # SIZING LOOP AND BLOCK H - THE FUNCTION YOU CALL
 # =====================================================================================
-def size_kite(zmin, zmax, Fmax, P_target, vs, pj, S_lo=10.0, S_hi=150.0, p=P):
+def size_kite(zmin, zmax, Fmax, P_target, vs, pj, S_lo=10.0, S_hi=150.0, p=P, z_site=0.0):
     """
     Find the kite area that delivers the target mean power in one wind class, and compute
     the trade-off metrics for that design.
@@ -625,6 +818,7 @@ def size_kite(zmin, zmax, Fmax, P_target, vs, pj, S_lo=10.0, S_hi=150.0, p=P):
         S_lo, S_hi : [m2]  search range for the kite area. These are search bounds, not
                      physical limits: S_lo must give less than the target, and S_hi should
                      become S_max from the volume budget.
+        z_site     : [m]   ground elevation of the site above sea level (air density, M3)
 
     Output (dict), or None if even S_hi cannot reach the target (F_max too low)
         S, A       : [m2]   projected and flat kite area                   (M7, M8)
@@ -641,7 +835,7 @@ def size_kite(zmin, zmax, Fmax, P_target, vs, pj, S_lo=10.0, S_hi=150.0, p=P):
 
     Run time with NUM = FAST: a few seconds per mean_power() call; a sizing run needs 6-10.
     """
-    geo = geometry(zmin, zmax, Fmax, p)
+    geo = geometry(zmin, zmax, Fmax, p, z_site)
 
     # Mean power minus target, as a function of kite area (zero at the solution).
     # Bins with negligible probability are skipped while searching; results are remembered
